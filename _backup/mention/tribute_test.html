@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <link rel="stylesheet" href="/xplugin/tribute/tribute.css" />
+    <script src="/xplugin/jquery/jquery-3.3.1.min.js"></script>
+    <script src="/xplugin/tribute/tribute.js"></script>
+</head>
+<body>
+
+
+<div id="caaanDo">I'm Mr. Meeseeks, look at me!</div>
+
+<div class="mentionable">Some text here.</div>
+<div class="mentionable">Some more text over here.</div>
+
+<a id="activateInput">@mention</a>
+
+<script>
+    var tribute = new Tribute({
+        values: function (text, cb) {
+            remoteSearch(text, users => cb(users));
+        },
+        /*
+        values: [
+            { key: "Phil Heartman", value: "pheartman" },
+            { key: "Gordon Ramsey", value: "gramsey" }
+        ]
+        */
+         */
+        // lookup: 검색시 표시할 값을 정한다. 검색 색인
+
+        ,
+        // function called on select that returns the content to insert
+        selectTemplate: function (item) {
+            console.log('selectTemplate');
+            return '@' + item.original.key;
+        },
+
+        // template for displaying item in menu
+        menuItemTemplate: function (item) {
+            console.log('menuItemTemplate');
+            return item.string;
+        }
+    });
+
+    tribute.attach(document.getElementById("caaanDo"));
+
+    // also works with NodeList
+    tribute.attach(document.querySelectorAll(".mentionable"));
+
+    // showMenuForCollection 이용하여 mention trigger 이벤트를 발생한다.
+    var activateLink = document.getElementById("activateInput");
+
+    activateLink.addEventListener("mousedown", function(e) {
+        e.preventDefault();
+        var input = document.getElementById("caaanDo");
+
+        tribute.showMenuForCollection(input);
+    });
+
+    // tribute-replaced 아이템을 선택하면 발생하는 이벤트
+    document
+        .getElementById("caaanDo")
+        .addEventListener("tribute-replaced", function(e) {
+            console.log(
+                "Original event that triggered text replacement:",
+                e.detail.event
+            );
+            console.log("Matched item:", e.detail.item);
+        });
+
+    // 매칭된 아이템이 없을때 발생, 검색시 결과가 없을경우 발생
+    document
+        .getElementById("caaanDo")
+        .addEventListener("tribute-no-match", function(e) {
+            console.log("No match found!");
+        });
+
+    document
+        .getElementById("caaanDo")
+        .addEventListener("tribute-active-true", function(e) {
+            console.log("Menu opened!");
+        });
+    document
+        .getElementById("caaanDo")
+        .addEventListener("tribute-active-false", function(e) {
+            console.log("Menu closed!");
+        });
+
+    function remoteSearch(key, cb) {
+        $.ajax({
+            url: '',
+            data: '',
+            success: function(response) {
+                cb(response);
+            }
+        })
+    }
+</script>
+
+</body>
+</html>

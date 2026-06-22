@@ -1,0 +1,28 @@
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+</head>  
+
+
+<body>
+  <h3>SSO 로그인 테스트</h3>
+  <pre>테스트 방법으로는 HOST 파일에 다른도메인으로 기록 후, Config:allow_uri 값을 설정
+  * HOST
+  127.0.0.1 ssodomain.com
+
+  * allow_uri // prefix 로 판단하기 때문에 http, https까지 명확해야하며, used가 false인 경우 전체 허용
+    {
+      "used":true,
+      "uri":[
+          "http://ssodomain.com"
+       ]
+    }
+  </pre>
+  <form action="http://localhost:8080/api/egene/ssologin" method="POST">
+    <input name="emp_id" value="admin">
+
+    <button>Send</button>
+  </form>
+</body>
+
+</html>

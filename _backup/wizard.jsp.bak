@@ -1,0 +1,3629 @@
+<%@ page contentType="text/html; charset=utf-8" %>
+<%@ include file="/xefc/jsp/common/import.jspf" %>
+<%@ include file="/xefc/jsp/include/session.jspf" %>
+<%
+    GlobalConfig gcfg = GlobalConfig.getInstance();
+    String colorConfigStr = gcfg.getValue("colortheme.config");
+    JSONObject colorConfigObj = (JSONObject) JSONValue.parse(colorConfigStr);
+
+    String primaryMain  = "#4E89AE";
+    String primaryDark  = "#30475E";
+    String primaryLight = "#dfe7eb";
+
+    if (colorConfigObj != null) {
+        if (colorConfigObj.containsKey("primaryMain"))  primaryMain  = colorConfigObj.getString("primaryMain");
+        if (colorConfigObj.containsKey("primaryDark"))  primaryDark  = colorConfigObj.getString("primaryDark");
+        if (colorConfigObj.containsKey("primaryLight")) primaryLight = colorConfigObj.getString("primaryLight");
+    }
+%>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+<title>Smart Office — 평면도 구성</title>
+<script src="/sample/fabric.min.js"></script>
+<style>
+:root {
+  --bg:        #F5F4F0;
+  --top:       <%= primaryDark %>;
+  --side:      #FAFAF8;
+  --border:    #E5E4DF;
+  --cbg:       #ECEAE4;
+  --txt:       #1C1C1E;
+  --txt2:      #8E8E93;
+  --th:        #F0EFEB;
+  --acc:       <%= primaryMain %>;
+  --primaryMain:  <%= primaryMain %>;
+  --primaryDark:  <%= primaryDark %>;
+  --primaryLight: <%= primaryLight %>;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family: -apple-system, 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  background: var(--bg);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--txt);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Top bar ── */
+.topbar {
+  height: 50px;
+  background: var(--top);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.tb-brand {
+  font-size: 12px;
+  font-weight: 600;
+  color: #EBEBF0;
+  letter-spacing: -.2px;
+  width: 160px;
+  flex-shrink: 0;
+}
+.tb-brand em { color: #48484A; font-style: normal; font-weight: 400; }
+
+/* Steps */
+.steps {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.step-dot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+  flex-shrink: 0;
+}
+.step.active  .step-dot { background: #fff; color: var(--primaryDark); }
+.step.done    .step-dot { background: #30D158; color: #fff; }
+.step.pending .step-dot { background: rgba(255,255,255,0.2); color: rgba(255,255,255,0.5); }
+.step-name { font-size: 11px; white-space: nowrap; }
+.step.active  .step-name { color: #EBEBF0; font-weight: 500; }
+.step.done    .step-name { color: rgba(255,255,255,0.5); }
+.step.pending .step-name { color: rgba(255,255,255,0.3); }
+.step-line {
+  width: 32px; height: 1px;
+  background: #2C2C2E;
+  flex-shrink: 0;
+  margin: 0 10px;
+}
+
+.tb-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.btn-ghost-dark {
+  padding: 5px 12px;
+  border: 1px solid #3A3A3C;
+  border-radius: 6px;
+  background: transparent;
+  color: #8E8E93;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+}
+.btn-ghost-dark:hover { border-color: #636366; color: #EBEBF0; }
+
+/* ── Main layout ── */
+.main { flex: 1; display: flex; overflow: hidden; }
+
+/* ── Left sidebar ── */
+.sidebar {
+  width: 56px;
+  background: var(--side);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0 14px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.tool {
+  width: 40px; height: 42px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--txt2);
+  transition: all .1s;
+  font-family: inherit;
+}
+.tool:hover { background: var(--th); color: var(--txt); }
+.tool.on { background: var(--acc); color: #FAFAF8; }
+.tool svg { flex-shrink: 0; display: block; }
+.tool span { font-size: 8px; letter-spacing: .1px; line-height: 1; }
+.tsep {
+  width: 26px; height: 1px;
+  background: var(--border);
+  margin: 5px 0;
+  flex-shrink: 0;
+}
+
+/* ── Canvas area ── */
+.carea {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cbg);
+  overflow: hidden;
+  position: relative;
+}
+#cwrap {
+  position: relative;
+  box-shadow: 0 2px 24px rgba(0,0,0,.13);
+  line-height: 0;
+}
+#cwrap canvas { display: block; }
+
+/* Snap / draw hint */
+#hint {
+  position: absolute;
+  top: 10px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(28,28,30,.82);
+  color: #EBEBF0;
+  font-size: 10px;
+  padding: 4px 13px;
+  border-radius: 20px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s;
+  white-space: nowrap;
+}
+#hint.show { opacity: 1; }
+
+/* Snap crosshair drawn on canvas via JS */
+
+/* ── Right panel ── */
+.panel {
+  width: 216px;
+  background: var(--side);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.ph {
+  padding: 11px 15px 9px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--txt2);
+  text-transform: uppercase;
+  letter-spacing: .9px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.pb { flex: 1; padding: 14px 15px; overflow-y: auto; }
+.pempty {
+  color: var(--txt2);
+  font-size: 11px;
+  line-height: 1.9;
+  margin-top: 28px;
+  text-align: center;
+}
+.pobj { display: none; }
+.prow { margin-bottom: 13px; }
+.plbl {
+  font-size: 9px;
+  color: var(--txt2);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 4px;
+}
+.pval { font-size: 13px; font-weight: 500; }
+.ptag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  background: var(--th);
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.bdel {
+  width: 100%;
+  padding: 7px;
+  border-radius: 6px;
+  border: 1px solid #FFD0D0;
+  background: transparent;
+  color: #C0392B;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: 8px;
+  transition: background .15s;
+}
+.bdel:hover { background: #FFF2F0; }
+
+/* Angle input */
+.angle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.angle-input {
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: inherit;
+  background: white;
+  color: var(--txt);
+  outline: none;
+}
+.angle-input:focus { border-color: var(--acc); }
+.angle-unit { font-size: 11px; color: var(--txt2); }
+
+/* ── BG image section ── */
+.bgsec {
+  border-top: 1px solid var(--border);
+  padding: 13px 15px;
+  flex-shrink: 0;
+}
+.bgtitle {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--txt2);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  margin-bottom: 9px;
+}
+.bupload {
+  width: 100%;
+  padding: 8px;
+  border: 1.5px dashed var(--border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--txt2);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all .15s;
+}
+.bupload:hover { border-color: var(--acc); color: var(--txt); }
+.bgctrl { display: none; }
+.slrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+}
+.sllbl { font-size: 10px; color: var(--txt2); white-space: nowrap; }
+.slider {
+  flex: 1;
+  appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--txt);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.slval { font-size: 10px; color: var(--txt2); width: 26px; text-align: right; }
+.bgbtns { display: flex; gap: 5px; margin-top: 8px; }
+.bsm {
+  flex: 1;
+  padding: 5px 0;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 10px;
+  color: var(--txt2);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+}
+.bsm:hover { background: var(--th); color: var(--txt); }
+.bsm.red:hover { background: #FFF2F0; border-color: #FFCDD2; color: #C0392B; }
+
+/* ── Bottom bar ── */
+.bottombar {
+  height: 46px;
+  background: var(--side);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+.bbinfo {
+  font-size: 11px;
+  color: var(--txt2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+kbd {
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--txt2);
+}
+.bbnext {
+  padding: 8px 20px;
+  border-radius: 7px;
+  border: none;
+  background: var(--acc);
+  color: #FAFAF8;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: background .15s;
+}
+.bbnext:hover { background: var(--primaryDark); }
+
+/* ── Step 2 sidebar (wider + row layout) ── */
+.sidebar.s2 { width: 124px; }
+
+/* section draw active state */
+.sidebar.s2 .tool.drawing { background: rgba(79,70,229,.12); color: #4F46E5; }
+
+/* Panel: furniture W/H row */
+.wh-row { display: flex; gap: 6px; margin-top: 3px; }
+.wh-item { display: flex; flex-direction: column; flex: 1; }
+.wh-lbl  { font-size: 9px; color: var(--txt2); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .4px; }
+.wh-wrap { display: flex; align-items: center; gap: 3px; }
+.wh-inp  {
+  flex: 1; min-width: 0; padding: 4px 6px;
+  border: 1px solid var(--border); border-radius: 5px;
+  font-size: 12px; font-family: inherit;
+  background: white; color: var(--txt); outline: none; text-align: center;
+}
+.wh-inp:focus { border-color: var(--acc); }
+.wh-unit { font-size: 10px; color: var(--txt2); flex-shrink: 0; }
+
+/* Panel: section name/type rows */
+.sec-inp {
+  width: 100%; padding: 5px 8px; margin-top: 3px;
+  border: 1px solid var(--border); border-radius: 5px;
+  font-size: 12px; font-family: inherit;
+  background: white; color: var(--txt); outline: none;
+}
+.sec-inp:focus { border-color: var(--acc); }
+.sec-sel {
+  width: 100%; padding: 5px 8px; margin-top: 3px;
+  border: 1px solid var(--border); border-radius: 5px;
+  font-size: 12px; font-family: inherit;
+  background: white; color: var(--txt); outline: none; cursor: pointer;
+}
+.s2-wrap { display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:2px; }
+.preset-cat {
+  font-size: 9px; font-weight: 700;
+  color: var(--txt2); text-transform: uppercase; letter-spacing: .7px;
+  padding: 9px 10px 3px; width: 100%;
+}
+.sidebar.s2 .tool {
+  width: 100%; height: 38px; border-radius: 7px;
+  flex-direction: row; gap: 8px;
+  padding: 0 10px; justify-content: flex-start;
+}
+.sidebar.s2 .tool span { font-size: 11px; white-space: nowrap; letter-spacing: 0; }
+.tsep-full { width: 100%; height: 1px; background: var(--border); margin: 5px 0; }
+
+/* ── Step 3 element list ── */
+.elist { flex: 1; overflow-y: auto; }
+.elist-empty { padding: 32px 15px; text-align: center; font-size: 11px; color: var(--txt2); line-height: 1.8; }
+.eitem {
+  padding: 10px 15px 8px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background .1s;
+}
+.eitem:hover { background: var(--th); }
+.eitem.on { background: var(--th); }
+.eitem-head { display: flex; align-items: center; gap: 7px; }
+.eitem-badge {
+  padding: 2px 7px; border-radius: 4px;
+  font-size: 9px; font-weight: 700;
+  background: #E8E5DF; color: #5C5852; flex-shrink: 0;
+}
+.eitem-id { font-size: 10px; color: var(--txt2); }
+.eitem-form { display: none; padding-top: 9px; }
+.eitem.on .eitem-form { display: block; }
+.ef-row { margin-bottom: 8px; }
+.ef-lbl { font-size: 9px; color: var(--txt2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
+.ef-inp {
+  width: 100%; padding: 5px 8px;
+  border: 1px solid var(--border); border-radius: 5px;
+  font-size: 12px; font-family: inherit;
+  background: white; color: var(--txt); outline: none;
+}
+.ef-inp:focus { border-color: var(--acc); }
+
+/* ── Back button ── */
+.bb-prev {
+  padding: 7px 14px; border-radius: 7px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--txt2); font-size: 12px; cursor: pointer;
+  font-family: inherit; display: none; align-items: center; gap: 6px;
+  transition: all .15s;
+}
+.bb-prev:hover { background: var(--th); color: var(--txt); }
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 60px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(28,28,30,.88);
+  color: #EBEBF0;
+  padding: 7px 18px;
+  border-radius: 20px;
+  font-size: 11px;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity .22s;
+  pointer-events: none;
+}
+
+/* ── Undo/Redo buttons ── */
+.btn-icon-dark {
+  width: 28px; height: 28px;
+  border: 1px solid #3A3A3C;
+  border-radius: 6px;
+  background: transparent;
+  color: #8E8E93;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.btn-icon-dark:hover:not(:disabled) { border-color: #636366; color: #EBEBF0; }
+.btn-icon-dark:disabled { opacity: .3; cursor: default; }
+
+/* ── Step dots clickable ── */
+.step { cursor: pointer; }
+.step.pending { cursor: default; }
+
+/* ── Sidebar Step1 ── */
+.sidebar { width: 64px; }
+
+/* ── Object list panel ── */
+.objlist-wrap {
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  min-height: 0;
+}
+.objlist-hd {
+  padding: 8px 15px 7px;
+  font-size: 9px; font-weight: 700;
+  color: var(--txt2); text-transform: uppercase; letter-spacing: .9px;
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; user-select: none; flex-shrink: 0;
+}
+.objlist-hd:hover { color: var(--txt); }
+.objlist-body {
+  flex: 1; overflow-y: auto;
+}
+.ol-item {
+  display: flex; align-items: center;
+  padding: 5px 15px 5px 12px;
+  gap: 7px;
+  cursor: pointer;
+  transition: background .1s;
+  border-bottom: 1px solid var(--border);
+}
+.ol-item:last-child { border-bottom: none; }
+.ol-item:hover { background: var(--th); }
+.ol-item.on { background: rgba(79,70,229,.08); }
+.ol-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0; background: #C4B5A5;
+}
+.ol-dot.wall    { background: #3A3530; border-radius: 2px; width:12px; height:4px; }
+.ol-dot.door    { background: #8E8E93; }
+.ol-dot.window  { background: #7BA7BC; border-radius: 1px; width:12px; height:4px; }
+.ol-dot.column  { background: #3A3530; border-radius: 2px; }
+.ol-dot.desk    { background: #C4B5A5; border-radius: 2px; }
+.ol-dot.section { background: #AAAAAA; border-radius: 2px; width:10px; height:10px; }
+.ol-dot.meeting { background: #4F46E5; border-radius: 2px; width:10px; height:10px; }
+.ol-dot.group   { background: #7C3AED; border-radius: 2px; width:10px; height:10px; border:1.5px dashed #7C3AED; background:transparent; }
+.ol-lbl { font-size: 11px; color: var(--txt); flex: 1; min-width: 0;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ol-del, .ol-ungrp {
+  height: 18px; border-radius: 4px; border: none;
+  background: transparent; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; opacity: 0; transition: all .1s;
+}
+.ol-del  { width: 18px; color: var(--txt2); font-size: 13px; }
+.ol-ungrp{ padding: 0 5px; color: #7C3AED; font-size: 10px; }
+.ol-item:hover .ol-del, .ol-item:hover .ol-ungrp { opacity: 1; }
+.ol-del:hover   { background: #FFF2F0; color: #C0392B; }
+.ol-ungrp:hover { background: #EDE9FE; }
+
+/* ── Zoom widget ── */
+.zoom-widget {
+  position: absolute;
+  bottom: 14px; right: 14px;
+  display: flex; align-items: center;
+  gap: 2px;
+  background: rgba(255,255,255,.92);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px 5px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.1);
+  z-index: 10;
+}
+.zoom-btn {
+  width: 24px; height: 24px; border: none; background: transparent;
+  border-radius: 5px; cursor: pointer; color: var(--txt2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 500; transition: background .1s;
+}
+.zoom-btn:hover { background: var(--th); color: var(--txt); }
+.zoom-pct {
+  font-size: 11px; color: var(--txt2); min-width: 36px;
+  text-align: center; user-select: none;
+}
+
+/* ── Bottom bar ── */
+.bottombar { justify-content: space-between; }
+.bb-left { display: flex; align-items: center; gap: 10px; }
+.bb-right { display: flex; align-items: center; gap: 8px; }
+.bb-prev { display: flex !important; }
+.bb-prev:disabled { opacity: .35; cursor: default; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="tb-brand">Smart Office <em>/ STEG</em></div>
+
+  <div class="steps">
+    <div class="step active" onclick="clickStep(1)">
+      <div class="step-dot">1</div>
+      <div class="step-name">구조 설계</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step pending" onclick="clickStep(2)">
+      <div class="step-dot">2</div>
+      <div class="step-name">요소 배치</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step pending" onclick="clickStep(3)">
+      <div class="step-dot">3</div>
+      <div class="step-name">세부 정보</div>
+    </div>
+  </div>
+
+  <div class="tb-right">
+    <select id="load-sel" onchange="loadExisting(this.value)"
+            style="background:#2C2C2E;border:1px solid #3A3A3C;color:#EBEBF0;
+                   font-size:11px;padding:4px 8px;border-radius:6px;outline:none;cursor:pointer;max-width:160px;">
+      <option value="">기존 레이아웃 불러오기</option>
+    </select>
+    <button class="btn-icon-dark" id="btn-undo" onclick="undo()" title="실행 취소 Ctrl+Z" disabled>
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 5.5h6a3 3 0 0 1 0 6H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 3L2 5.5 4.5 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="btn-icon-dark" id="btn-redo" onclick="redo()" title="다시 실행 Ctrl+Y" disabled>
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M11 5.5H5a3 3 0 0 0 0 6h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 3L11 5.5 8.5 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div style="width:1px;height:16px;background:#3A3A3C;margin:0 2px"></div>
+    <button class="btn-icon-dark" onclick="rotateMap('ccw')" title="맵 90° 반시계방향 회전">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M2.5 7A4.5 4.5 0 1 0 4 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M2.5 2v2.5H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="btn-icon-dark" onclick="rotateMap('cw')" title="맵 90° 시계방향 회전">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M11.5 7A4.5 4.5 0 1 1 10 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M11.5 2v2.5H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="btn-ghost-dark" onclick="saveDraft()">임시저장</button>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Left: tool palette -->
+  <div class="sidebar" id="main-sidebar">
+
+    <!-- Step 1: drawing tools -->
+    <div id="s1-tools" style="display:contents">
+    <button class="tool on" id="t-select" onclick="setTool('select')" title="선택 V">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <path d="M3 1.5L3 12.5L6.2 9.3L8.2 13.5L10 12.7L8 8.5L12 8.5L3 1.5Z" fill="currentColor"/>
+      </svg>
+      <span>선택</span>
+    </button>
+
+    <div class="tsep"></div>
+
+    <button class="tool" id="t-wall" onclick="setTool('wall')" title="벽 W">
+      <svg width="15" height="15" viewBox="0 0 15 15">
+        <rect x="1.5" y="6.5" width="12" height="2" rx=".8" fill="currentColor"/>
+        <circle cx="2" cy="7.5" r="1.2" fill="currentColor"/>
+        <circle cx="13" cy="7.5" r="1.2" fill="currentColor"/>
+      </svg>
+      <span>벽</span>
+    </button>
+
+    <button class="tool" id="t-door" onclick="setTool('door')" title="문 D">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <line x1="3" y1="12" x2="10" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="3" y1="5" x2="3" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M10,12 A7,7 0 0,0 3,5" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2.5 2"/>
+      </svg>
+      <span>문</span>
+    </button>
+
+    <button class="tool" id="t-window" onclick="setTool('window')" title="창문 N">
+      <svg width="15" height="15" viewBox="0 0 15 15">
+        <rect x="1.5" y="4.5" width="12" height="1.5" rx=".5" fill="currentColor"/>
+        <rect x="1.5" y="9" width="12" height="1.5" rx=".5" fill="currentColor"/>
+        <rect x="1.5" y="6" width="12" height="3" rx=".5" fill="none" stroke="currentColor" stroke-width=".7"/>
+      </svg>
+      <span>창문</span>
+    </button>
+
+    <button class="tool" id="t-column" onclick="setTool('column')" title="기둥 C">
+      <svg width="15" height="15" viewBox="0 0 15 15">
+        <rect x="4" y="4" width="7" height="7" fill="currentColor" rx="1"/>
+      </svg>
+      <span>기둥</span>
+    </button>
+
+    <div class="tsep"></div>
+
+    <button class="tool" onclick="deleteSelected()" title="삭제 Del">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M5.5 2.5h3M2 4h10M3.5 4l.8 7.5h5.4L10.5 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>삭제</span>
+    </button>
+
+    <div class="tsep-full" style="margin-top:auto"></div>
+    </div><!-- /s1-tools -->
+
+    <!-- Step 2: furniture presets -->
+    <div id="s2-presets" style="display:none; flex-direction:column; align-items:center; width:100%; overflow-y:auto; padding-bottom:10px">
+      <div class="s2-wrap">
+        <span class="preset-cat">구역</span>
+        <button class="tool" id="t-section" onclick="startSectionDraw()">
+          <svg width="15" height="15" viewBox="0 0 15 15"><rect x="1" y="1" width="13" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="3 2"/></svg>
+          <span>구역 그리기</span>
+        </button>
+        <div class="tsep-full"></div>
+        <span class="preset-cat">책상</span>
+        <button class="tool" onclick="placeDesk()">
+          <svg width="15" height="15" viewBox="0 0 15 15"><rect x="1" y="3" width="13" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+          <span>책상</span>
+        </button>
+        <div class="tsep-full"></div>
+        <span class="preset-cat">기타</span>
+        <button class="tool" onclick="placePreset('partition')">
+          <svg width="15" height="15" viewBox="0 0 15 15"><rect x="1" y="6.5" width="13" height="2" rx=".5" fill="currentColor"/></svg>
+          <span>파티션</span>
+        </button>
+        <button class="tool" onclick="placePreset('sofa')">
+          <svg width="15" height="15" viewBox="0 0 15 15"><rect x="1" y="4" width="13" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="4" width="3" height="8" rx="1.5" fill="currentColor" opacity=".4"/><rect x="11" y="4" width="3" height="8" rx="1.5" fill="currentColor" opacity=".4"/><rect x="4" y="4" width="7" height="4" rx="1" fill="currentColor" opacity=".2"/></svg>
+          <span>소파</span>
+        </button>
+        <div class="tsep-full"></div>
+        <button class="tool" onclick="deleteSelected()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 2.5h3M2 4h10M3.5 4l.8 7.5h5.4L10.5 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>삭제</span>
+        </button>
+      </div>
+    </div><!-- /s2-presets -->
+
+  </div>
+
+  <!-- Canvas -->
+  <div class="carea" id="carea">
+    <div id="cwrap">
+      <canvas id="c"></canvas>
+    </div>
+    <div id="hint"></div>
+    <div class="zoom-widget">
+      <button class="zoom-btn" onclick="zoomOut()" title="축소 Ctrl+−">−</button>
+      <span class="zoom-pct" id="zoom-pct">100%</span>
+      <button class="zoom-btn" onclick="zoomIn()" title="확대 Ctrl+=">+</button>
+      <button class="zoom-btn" onclick="fitAll()" title="화면에 맞추기" style="font-size:11px">⊙</button>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="panel">
+    <!-- Steps 1 & 2: property panel -->
+    <div id="panel-normal" style="display:flex; flex-direction:column; height:100%; overflow:hidden">
+    <div class="ph">속성</div>
+    <div class="pb">
+      <div class="pempty" id="pempty">오브젝트를 선택하거나<br>도구를 선택해<br>작업을 시작하세요</div>
+      <div class="pobj" id="pobj">
+        <div class="prow">
+          <div class="plbl">유형</div>
+          <div class="pval"><span class="ptag" id="pv-type">—</span></div>
+        </div>
+        <div class="prow" id="pr-size">
+          <div class="plbl">길이</div>
+          <div class="pval" id="pv-size">—</div>
+        </div>
+        <div class="prow" id="pr-stroke" style="display:none">
+          <div class="plbl">두께</div>
+          <div style="display:flex; align-items:center; gap:7px; margin-top:3px">
+            <input type="range" class="slider" id="pv-stroke" min="2" max="24" value="6" step="1" oninput="applyStroke(this.value)">
+            <span class="slval" id="pv-stroke-val">6</span>
+          </div>
+        </div>
+        <!-- furniture W/H -->
+        <div class="prow" id="pr-wh" style="display:none">
+          <div class="plbl">크기</div>
+          <div class="wh-row">
+            <div class="wh-item">
+              <div class="wh-lbl">가로</div>
+              <div class="wh-wrap">
+                <input class="wh-inp" id="pv-fw" type="number" min="1" step="1" value="80" onchange="applyFurnitureSize()">
+                <span class="wh-unit" id="pv-fw-unit">px</span>
+              </div>
+            </div>
+            <div class="wh-item">
+              <div class="wh-lbl">세로</div>
+              <div class="wh-wrap">
+                <input class="wh-inp" id="pv-fh" type="number" min="1" step="1" value="55" onchange="applyFurnitureSize()">
+                <span class="wh-unit" id="pv-fh-unit">px</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- flip buttons for door / window -->
+        <div class="prow" id="pr-flip" style="display:none">
+          <div class="plbl">반전</div>
+          <div style="display:flex;gap:6px;margin-top:5px">
+            <button onclick="flipObject('x')"
+              style="flex:1;padding:5px 0;border-radius:5px;border:1px solid var(--border);
+                     background:transparent;color:var(--txt);font-size:11px;cursor:pointer;
+                     font-family:inherit">↔ 좌우</button>
+            <button onclick="flipObject('y')"
+              style="flex:1;padding:5px 0;border-radius:5px;border:1px solid var(--border);
+                     background:transparent;color:var(--txt);font-size:11px;cursor:pointer;
+                     font-family:inherit">↕ 상하</button>
+          </div>
+        </div>
+        <!-- column size -->
+        <div class="prow" id="pr-col" style="display:none">
+          <div class="plbl">크기</div>
+          <div class="wh-row">
+            <div class="wh-item">
+              <div class="wh-lbl">가로</div>
+              <div class="wh-wrap">
+                <input class="wh-inp" id="pv-cw" type="number" min="1" step="1" value="18" onchange="applyColumnSize()">
+                <span class="wh-unit" id="pv-cw-unit">px</span>
+              </div>
+            </div>
+            <div class="wh-item">
+              <div class="wh-lbl">세로</div>
+              <div class="wh-wrap">
+                <input class="wh-inp" id="pv-ch" type="number" min="1" step="1" value="18" onchange="applyColumnSize()">
+                <span class="wh-unit" id="pv-ch-unit">px</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- section name / type -->
+        <div class="prow" id="pr-sname" style="display:none">
+          <div class="plbl">이름</div>
+          <input class="sec-inp" id="pv-sname" type="text" placeholder="예: 1회의실" oninput="applySectionName(this.value)">
+        </div>
+        <div class="prow" id="pr-stype" style="display:none">
+          <div class="plbl">구역 유형</div>
+          <select class="sec-sel" id="pv-stype" onchange="applySectionType(this.value)">
+            <option value="SECTION">일반 구역</option>
+            <option value="MEETING">회의실 (예약 가능)</option>
+          </select>
+        </div>
+        <!-- color picker -->
+        <div class="prow" id="pr-color" style="display:none">
+          <div class="plbl">색상</div>
+          <div style="margin-top:4px">
+            <input type="color" id="pv-fill-color" value="#EDE5D8"
+              oninput="applyObjColor(this.value)"
+              style="width:30px;height:24px;padding:1px 2px;border:1px solid var(--border);
+                     border-radius:4px;cursor:pointer;background:white">
+          </div>
+        </div>
+        <div class="prow" id="pr-angle">
+          <div class="plbl">각도</div>
+          <div class="angle-wrap">
+            <input class="angle-input" id="pv-angle" type="number" min="-180" max="360" step="1" value="0" onchange="applyAngleFromPanel(this.value)">
+            <span class="angle-unit">°</span>
+          </div>
+        </div>
+        <button class="bdel" onclick="deleteSelected()">삭제</button>
+      </div>
+    </div>
+
+    <!-- BG image section -->
+    <div class="bgsec">
+      <div style="font-size:9px;color:var(--txt2);margin-bottom:8px;padding:5px 7px;background:var(--th);border-radius:5px;">
+        축척 <span id="scale-info">1칸 = 250 mm</span>
+      </div>
+      <div class="bgtitle">배경 도면</div>
+      <input type="file" id="bgfile" accept="image/*" style="display:none" onchange="onBgFile(event)">
+      <button class="bupload" id="bupload" onclick="document.getElementById('bgfile').click()">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <path d="M6.5 2v7M4 4.5L6.5 2 9 4.5M2 11h9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        도면 업로드
+      </button>
+      <div class="bgctrl" id="bgctrl">
+        <div class="slrow">
+          <span class="sllbl">투명도</span>
+          <input type="range" class="slider" id="bgopa" min="0" max="60" value="30" oninput="setBgOpacity(this.value)">
+          <span class="slval" id="bgopa-val">30%</span>
+        </div>
+        <div class="bgbtns">
+          <button class="bsm" id="btn-toggle-bg" onclick="toggleBg()">숨기기</button>
+          <button class="bsm red" onclick="removeBg()">제거</button>
+        </div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          <div style="font-size:9px;color:var(--txt2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px">자동 인식</div>
+          <button class="bsm" id="btn-ocv" onclick="startOcvDetect()" style="width:100%">벽 자동 감지</button>
+          <div id="ocv-result" style="display:none;margin-top:6px">
+            <div style="font-size:10px;color:var(--txt2);padding:5px 7px;background:var(--th);border-radius:5px;margin-bottom:6px">
+              감지: <strong id="ocv-count" style="color:var(--txt)">0</strong>개 &nbsp;
+              <span id="ocv-note" style="font-size:9px;opacity:.7"></span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button onclick="cancelOcvDetect()"
+                style="flex:1;padding:6px;border-radius:6px;border:1px solid var(--border);
+                       background:transparent;color:var(--txt2);font-size:11px;
+                       cursor:pointer;font-family:inherit">취소</button>
+              <button onclick="applyOcvLines()"
+                style="flex:1;padding:6px;border-radius:6px;border:none;
+                       background:var(--txt);color:#FAFAF8;font-size:11px;font-weight:500;
+                       cursor:pointer;font-family:inherit">적용</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scale calibration panel -->
+      <div id="scale-panel" style="display:none; margin-top:8px">
+        <!-- Step 1: draw line -->
+        <div id="calib-step1">
+          <div style="font-size:10px;color:var(--txt2);line-height:1.75;margin-bottom:10px;padding:8px;background:var(--th);border-radius:6px">
+            도면 위에서 <strong style="color:var(--txt)">길이를 아는 두 점</strong>을<br>클릭해서 선을 그으세요.<br><span style="opacity:.7">(예: 문 폭, 벽 길이)</span>
+          </div>
+          <button onclick="cancelCalib()"
+            style="width:100%;padding:6px;border-radius:6px;border:1px solid var(--border);
+                   background:transparent;color:var(--txt2);font-size:11px;cursor:pointer;font-family:inherit">
+            취소
+          </button>
+        </div>
+        <!-- Step 2: enter real length + adjust -->
+        <div id="calib-step2" style="display:none">
+          <!-- Reference: px length + real distance input -->
+          <div class="slrow" style="margin-bottom:10px">
+            <span class="sllbl" style="font-size:10px;color:var(--txt2)">
+              <span id="calib-px-len">—</span>px =
+            </span>
+            <input type="number" id="scale-meters" value="5" min="1" step="1"
+              style="width:46px;padding:3px 5px;border:1px solid var(--border);border-radius:5px;
+                     font-size:12px;font-family:inherit;background:white;color:var(--txt);
+                     outline:none;text-align:center"
+              oninput="updateCalibLabel()">
+            <span class="sllbl">m</span>
+          </div>
+          <!-- Editable result: grid size in mm -->
+          <div style="margin-bottom:10px">
+            <div style="font-size:10px;color:var(--txt2);margin-bottom:5px">격자 1칸 크기</div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <button onclick="adjustGridMm(-10)"
+                style="width:26px;height:26px;border-radius:5px;border:1px solid var(--border);
+                       background:transparent;color:var(--txt);font-size:16px;line-height:1;
+                       cursor:pointer;font-family:inherit;flex-shrink:0">−</button>
+              <input type="number" id="grid-mm" value="500" min="10" max="10000" step="10"
+                style="flex:1;min-width:0;padding:3px 5px;border:1px solid var(--border);border-radius:5px;
+                       font-size:12px;font-family:inherit;background:white;color:var(--txt);
+                       outline:none;text-align:center"
+                oninput="onGridMmChange()">
+              <button onclick="adjustGridMm(10)"
+                style="width:26px;height:26px;border-radius:5px;border:1px solid var(--border);
+                       background:transparent;color:var(--txt);font-size:16px;line-height:1;
+                       cursor:pointer;font-family:inherit;flex-shrink:0">+</button>
+              <span style="font-size:11px;color:var(--txt2);flex-shrink:0">mm</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button onclick="resetCalib()"
+              style="flex:1;padding:7px;border-radius:6px;border:1px solid var(--border);
+                     background:transparent;color:var(--txt2);font-size:11px;
+                     cursor:pointer;font-family:inherit">
+              다시 그리기
+            </button>
+            <button onclick="confirmScale()"
+              style="flex:1;padding:7px;border-radius:6px;border:none;
+                     background:var(--txt);color:#FAFAF8;font-size:11px;font-weight:500;
+                     cursor:pointer;font-family:inherit">
+              확정
+            </button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /bgsec -->
+
+    <!-- Object list (steps 1 & 2) -->
+    <div class="objlist-wrap" id="objlist-wrap">
+      <div class="objlist-hd" onclick="toggleObjList()">
+        <span>오브젝트</span>
+        <span id="objlist-count" style="font-size:9px;font-weight:400;color:var(--txt2)">0개</span>
+      </div>
+      <div class="objlist-body" id="objlist-body"></div>
+    </div>
+    </div><!-- /panel-normal -->
+
+    <!-- Step 3: element list -->
+    <div id="panel-step3" style="display:none; flex-direction:column; height:100%; overflow:hidden">
+      <div class="ph">요소 목록</div>
+      <div class="elist" id="s3-list">
+        <div class="elist-empty">배치된 요소가<br>없습니다</div>
+      </div>
+      <div style="padding:12px 14px; border-top:1px solid var(--border); flex-shrink:0; display:flex; flex-direction:column; gap:8px">
+        <div>
+          <div class="plabel" style="margin-bottom:4px">사무실 이름</div>
+          <input id="so-layout-name" class="pinput" style="width:100%" placeholder="예: 3층 개발팀 사무실" value="">
+        </div>
+        <button class="bbnext" style="width:100%; justify-content:center" onclick="saveAll()">eGene에 저장</button>
+      </div>
+    </div><!-- /panel-step3 -->
+  </div><!-- /panel -->
+
+</div>
+
+<!-- Bottom bar -->
+<div class="bottombar">
+  <div class="bb-left">
+    <div class="bbinfo" id="bb-info">
+      <span id="bb-count">오브젝트 0개</span>
+      <span>·</span>
+      <span id="bb-hint"><kbd>Shift</kbd> 45° 스냅 · <kbd>Del</kbd> 삭제 · <kbd>Esc</kbd> 취소</span>
+    </div>
+  </div>
+  <div class="bb-right">
+    <button class="bb-prev" id="bb-prev" onclick="goBack()" disabled>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M7.5 2.5L3 6l4.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      이전
+    </button>
+    <button class="bbnext" id="bb-next" onclick="goNext()">
+      <span id="bb-next-label">요소 배치</span>
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+        <path d="M5 3.5l4.5 3-4.5 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Constants ────────────────────────────────────────────
+var GRID     = 20;   // dot grid display interval
+var SNAP     = 5;    // drawing snap resolution (finer than display grid)
+var SNAP_D   = 18;   // magnetic endpoint snap distance
+var DOOR_W   = 64;
+var WIN_W    = 80;
+var COL_S    = 18;
+
+// ── State ────────────────────────────────────────────────
+var activeTool = 'select';
+var wallSt     = { on: false, x1: 0, y1: 0, prev: null };
+var shiftOn    = false;
+var bgImg      = null;
+var bgOn       = true;
+var pts        = [];   // wall endpoints for magnetic snap
+var currentSnapPt = null;   // endpoint currently highlighted (snap target)
+
+// Scale calibration (default: 1 grid(20px) = 250mm → pxPerM = 80)
+var pxPerM      = 80;
+var scaleModeOn = false;
+var calibSt     = { pt1: null, pt2: null, dot1: null, dot2: null, line: null, prev: null, pxLen: 0 };
+
+// Canvas panning
+var isPanning  = false;
+var lastPanX   = 0;
+var lastPanY   = 0;
+var spaceDown  = false;
+
+// ── Canvas Setup ─────────────────────────────────────────
+var ca  = document.getElementById('carea');
+var cW  = ca.clientWidth  - 2;
+var cH  = ca.clientHeight - 2;
+
+var cv = new fabric.Canvas('c', {
+  width:  cW,
+  height: cH,
+  backgroundColor: '#FFFFFF',
+  selection: true,
+  preserveObjectStacking: true
+});
+
+// Dot grid via after:render — drawn under objects by drawing before clear via renderCanvas override
+// Using a simple approach: overlay very faint dots via after:render (they appear over objects
+// but are 1px and very subtle — acceptable for demo)
+cv.on('after:render', function() {
+  var ctx = cv.getContext();
+  var vp  = cv.viewportTransform;
+  ctx.save();
+
+  // Dot grid (zoom/pan aware)
+  var zoom = vp[0], ox = vp[4], oy = vp[5];
+  var gs = GRID * zoom;
+  if (gs >= 6) {
+    ctx.globalAlpha = Math.min(0.35, 0.12 + zoom * 0.08);
+    ctx.fillStyle = '#A0A09A';
+    var sx = ((ox % gs) + gs) % gs;
+    var sy = ((oy % gs) + gs) % gs;
+    for (var x = sx; x < cW + gs; x += gs) {
+      for (var y = sy; y < cH + gs; y += gs) {
+        ctx.fillRect(Math.round(x) - 0.5, Math.round(y) - 0.5, 1.5, 1.5);
+      }
+    }
+  }
+
+  // Wall endpoint circles — viewport transform 합성으로 pan/zoom 반영
+  ctx.globalAlpha = 1;
+  cv.getObjects().forEach(function(o) {
+    if (o._tool !== 'wall' || o._prev) return;
+    var eps = wallEndpointsPt(o);
+    var p1  = fabric.util.transformPoint(eps[0], vp);
+    var p2  = fabric.util.transformPoint(eps[1], vp);
+    var sw = o.strokeWidth || DEF_SW;
+    var r  = Math.max(5, sw / 2 + 2);
+    var isSelected = (cv.getActiveObject() === o);
+    [p1, p2].forEach(function(p) {
+      var snapped = currentSnapPt && Math.hypot(p.x - currentSnapPt.x, p.y - currentSnapPt.y) < 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle   = isSelected ? '#4F46E5' : (snapped ? '#3A3530' : '#FFFFFF');
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? '#ffffff' : '#3A3530';
+      ctx.lineWidth   = 2;
+      ctx.stroke();
+    });
+  });
+
+  // Smart snap guides + distance labels
+  if (snapState.vLine !== null || snapState.hLine !== null || snapState.dists.length) {
+    var toS = function(cx, cy) { return { x: cx*vp[0]+vp[4], y: cy*vp[3]+vp[5] }; };
+    ctx.save();
+    // Guide lines
+    ctx.strokeStyle = 'rgba(220,50,50,0.75)';
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([5,5]);
+    if (snapState.vLine !== null) {
+      var sx = snapState.vLine * vp[0] + vp[4];
+      ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, cH); ctx.stroke();
+    }
+    if (snapState.hLine !== null) {
+      var sy = snapState.hLine * vp[3] + vp[5];
+      ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(cW, sy); ctx.stroke();
+    }
+    // Distance brackets
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(0,100,210,0.9)';
+    ctx.lineWidth   = 1.5;
+    ctx.font        = 'bold 11px -apple-system,sans-serif';
+    ctx.textAlign   = 'center';
+    ctx.textBaseline = 'middle';
+    snapState.dists.forEach(function(d) {
+      var CAP = 5;
+      if (d.type === 'h') {
+        var s1 = toS(d.x1, d.y), s2 = toS(d.x2, d.y);
+        if (Math.abs(s2.x - s1.x) < 4) return;
+        ctx.strokeStyle = 'rgba(0,100,210,0.9)';
+        ctx.beginPath(); ctx.moveTo(s1.x, s1.y-CAP); ctx.lineTo(s1.x, s1.y+CAP); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s2.x, s1.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(s2.x, s2.y-CAP); ctx.lineTo(s2.x, s2.y+CAP); ctx.stroke();
+        var mx = (s1.x+s2.x)/2, tw = ctx.measureText(d.text).width + 8;
+        ctx.fillStyle = 'rgba(0,90,200,0.92)'; ctx.beginPath(); ctx.roundRect(mx-tw/2, s1.y-9, tw, 18, 3); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.fillText(d.text, mx, s1.y);
+      } else {
+        var s1 = toS(d.x, d.y1), s2 = toS(d.x, d.y2);
+        if (Math.abs(s2.y - s1.y) < 4) return;
+        ctx.strokeStyle = 'rgba(0,100,210,0.9)';
+        ctx.beginPath(); ctx.moveTo(s1.x-CAP, s1.y); ctx.lineTo(s1.x+CAP, s1.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(s2.x-CAP, s2.y); ctx.lineTo(s2.x+CAP, s2.y); ctx.stroke();
+        var my = (s1.y+s2.y)/2, tw = ctx.measureText(d.text).width + 8;
+        ctx.fillStyle = 'rgba(0,90,200,0.92)'; ctx.beginPath(); ctx.roundRect(s1.x-tw/2, my-9, tw, 18, 3); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.fillText(d.text, s1.x, my);
+      }
+    });
+    ctx.restore();
+  }
+
+  // Start-point dot — viewport transform 합성
+  if (wallSt.on) {
+    var sp = fabric.util.transformPoint({ x: wallSt.x1, y: wallSt.y1 }, vp);
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#4F46E5';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+});
+
+// ── Tool Management ───────────────────────────────────────
+function setTool(t) {
+  if (scaleModeOn) { toast('축척 설정 중에는 도구를 사용할 수 없습니다'); return; }
+  activeTool = t;
+  document.querySelectorAll('.tool').forEach(function(b) { b.classList.remove('on', 'drawing'); });
+  var el = document.getElementById('t-' + t);
+  if (el) el.classList.add('on');
+
+  cancelWall();
+  cancelSection();
+
+  if (t === 'select') {
+    cv.selection = true;
+    cv.defaultCursor = 'default';
+    cv.hoverCursor   = 'move';
+    cv.forEachObject(function(o) {
+      if (o._bg || o._prev) return;
+      var sel;
+      if (currentStep === 2) {
+        sel = (o._tool === 'furniture' || o._tool === 'section');
+      } else {
+        sel = (o._tool && o._tool !== 'furniture' && o._tool !== 'section');
+      }
+      o.selectable = sel;
+      o.evented    = sel;
+    });
+    cv.renderAll();
+  } else {
+    cv.selection = false;
+    cv.defaultCursor = 'crosshair';
+    cv.hoverCursor   = 'crosshair';
+    cv.discardActiveObject();
+    cv.forEachObject(function(o) { o.selectable = false; o.evented = false; });
+    cv.renderAll();
+    showPanelEmpty();
+  }
+}
+
+function startSectionDraw() {
+  if (currentStep !== 2) return;
+  activeTool = 'section';
+  document.querySelectorAll('.tool').forEach(function(b) { b.classList.remove('on', 'drawing'); });
+  var el = document.getElementById('t-section');
+  if (el) el.classList.add('on', 'drawing');
+  cv.selection = false;
+  cv.defaultCursor = 'crosshair';
+  cv.hoverCursor   = 'crosshair';
+  cv.discardActiveObject();
+  cv.forEachObject(function(o) { o.selectable = false; o.evented = false; });
+  cv.renderAll();
+  showPanelEmpty();
+  toast('드래그로 구역 범위를 지정하세요 · Esc 취소');
+}
+
+function cancelSection() {
+  if (sectionSt.prev) { cv.remove(sectionSt.prev); cv.renderAll(); }
+  sectionSt = { on: false, x0: 0, y0: 0, prev: null };
+}
+
+// ── Snap ─────────────────────────────────────────────────
+function sg(v) { return Math.round(v / SNAP) * SNAP; }
+
+function snapPt(x, y) {
+  var best = null, bestD = SNAP_D;
+  pts.forEach(function(p) {
+    var d = Math.hypot(x - p.x, y - p.y);
+    if (d < bestD) { bestD = d; best = p; }
+  });
+  if (best) {
+    flashHint('끝점 스냅');
+    currentSnapPt = best;
+    return { x: best.x, y: best.y };
+  }
+  currentSnapPt = null;
+  return { x: sg(x), y: sg(y) };
+}
+
+function snapAngle(x1, y1, x2, y2) {
+  if (!shiftOn) return { x: x2, y: y2 };
+  var dx = x2 - x1, dy = y2 - y1;
+  var a  = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+  var d  = Math.hypot(dx, dy);
+  return { x: x1 + Math.cos(a) * d, y: y1 + Math.sin(a) * d };
+}
+
+var hintTimer;
+function flashHint(msg) {
+  var el = document.getElementById('hint');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(function() { el.classList.remove('show'); }, 900);
+}
+
+// ── Endpoint Drag (proximity-based) ──────────────────────
+var epDragging   = null;  // { wall, idx, otherX, otherY } while dragging endpoint
+var bodyDragging = null;  // { wall, sx, sy, ox1, oy1, ox2, oy2, oleft, otop } while dragging wall body
+var snapState    = { vLine: null, hLine: null, dists: [] };  // smart snap guides + distance labels
+var snapLock     = { x: null, y: null };  // hysteresis: { lockedLeft/Top, guideLine }
+
+function wallEndpointsPt(wall) {
+  // Returns canvas-pixel coordinates of both endpoints.
+  // calcLinePoints() adds strokeWidth/2 inward offset — we use width/height
+  // directly to get exact endpoints. calcTransformMatrix handles pan/zoom/move.
+  var xMult = wall.x1 <= wall.x2 ? -1 : 1;
+  var yMult = wall.y1 <= wall.y2 ? -1 : 1;
+  var m = wall.calcTransformMatrix();
+  return [
+    fabric.util.transformPoint({ x:  xMult * wall.width / 2, y:  yMult * wall.height / 2 }, m),
+    fabric.util.transformPoint({ x: -xMult * wall.width / 2, y: -yMult * wall.height / 2 }, m)
+  ];
+}
+
+// ── Canvas Events ─────────────────────────────────────────
+cv.on('mouse:down', function(e) {
+  // Calibration line drawing
+  if (scaleModeOn) {
+    var p = cv.getPointer(e.e);
+    if (!calibSt.pt1) {
+      calibSt.pt1 = { x: p.x, y: p.y };
+      calibSt.dot1 = new fabric.Circle({
+        left: p.x, top: p.y, radius: 5,
+        fill: '#FF3B30', stroke: '#fff', strokeWidth: 1.5,
+        originX: 'center', originY: 'center',
+        selectable: false, evented: false, _calib: true
+      });
+      cv.add(calibSt.dot1);
+      cv.renderAll();
+      flashHint('두 번째 점을 클릭하세요');
+    } else if (!calibSt.pt2) {
+      if (calibSt.prev) { cv.remove(calibSt.prev); calibSt.prev = null; }
+      calibSt.pt2 = { x: p.x, y: p.y };
+      finishCalibLine(calibSt.pt1, calibSt.pt2);
+    }
+    return;
+  }
+
+  // Endpoint drag: check ALL walls (circle is drawn via after:render, extends beyond line hit area)
+  if (activeTool === 'select') {
+    var p   = cv.getPointer(e.e);
+    var HIT = 14 / cv.getZoom();
+    var walls = cv.getObjects().filter(function(o) { return o._tool === 'wall' && !o._prev; });
+    for (var wi = 0; wi < walls.length; wi++) {
+      var w  = walls[wi];
+      var eps = wallEndpointsPt(w);
+      for (var i = 0; i < eps.length; i++) {
+        if (Math.hypot(eps[i].x - p.x, eps[i].y - p.y) < HIT) {
+          cv.setActiveObject(w);
+          // Record the OTHER endpoint position NOW (once) so moveLineEndpoint
+          // never needs to re-derive it from a potentially stale/scaled wall.
+          var otherEps = wallEndpointsPt(w);
+          epDragging = { wall: w, idx: i,
+                         otherX: otherEps[1 - i].x, otherY: otherEps[1 - i].y };
+          w.lockMovementX = w.lockMovementY = true;
+          cv.setCursor('crosshair');
+          cv.requestRenderAll();
+          return;
+        }
+      }
+    }
+  }
+  // Ctrl/Cmd + drag → pan (higher priority than body drag)
+  if ((e.e.ctrlKey || e.e.metaKey) && activeTool === 'select') {
+    isPanning = true;
+    lastPanX  = e.e.clientX;
+    lastPanY  = e.e.clientY;
+    cv.setCursor('grabbing');
+    return;
+  }
+
+  // Wall body drag: click on wall line (not near endpoint) → move whole wall
+  if (activeTool === 'select') {
+    var pb   = cv.getPointer(e.e);
+    var BHIT = 9 / cv.getZoom();
+    var walls2 = cv.getObjects().filter(function(o) { return o._tool === 'wall' && !o._prev; });
+    for (var bi = 0; bi < walls2.length; bi++) {
+      var wb  = walls2[bi];
+      var epsb = wallEndpointsPt(wb);
+      var ex = epsb[1].x - epsb[0].x, ey = epsb[1].y - epsb[0].y;
+      var len2 = ex*ex + ey*ey;
+      var t = len2 > 0 ? Math.max(0, Math.min(1, ((pb.x-epsb[0].x)*ex + (pb.y-epsb[0].y)*ey) / len2)) : 0;
+      var nearX = epsb[0].x + t*ex, nearY = epsb[0].y + t*ey;
+      if (Math.hypot(pb.x - nearX, pb.y - nearY) < BHIT) {
+        cv.setActiveObject(wb);
+        bodyDragging = { wall: wb, sx: pb.x, sy: pb.y,
+          ox1: wb.x1, oy1: wb.y1, ox2: wb.x2, oy2: wb.y2,
+          oleft: wb.left, otop: wb.top };
+        cv.selection = false;
+        cv.setCursor('move');
+        cv.requestRenderAll();
+        return;
+      }
+    }
+  }
+
+  // Pan: Space held
+  if (spaceDown) {
+    isPanning = true;
+    lastPanX  = e.e.clientX;
+    lastPanY  = e.e.clientY;
+    cv.setCursor('grabbing');
+    return;
+  }
+  if (activeTool === 'select') return;
+  var p  = cv.getPointer(e.e);
+  var sp = snapPt(p.x, p.y);
+  if (activeTool === 'wall') {
+    if (!wallSt.on) {
+      startWall(sp.x, sp.y);
+    } else {
+      var ap = snapAngle(wallSt.x1, wallSt.y1, sp.x, sp.y);
+      finishWall(ap.x, ap.y);
+    }
+  } else if (activeTool === 'door')    placeDoor(sp.x, sp.y);
+  else if (activeTool === 'window')  placeWin(sp.x, sp.y);
+  else if (activeTool === 'column')  placeCol(sp.x, sp.y);
+  else if (activeTool === 'section') {
+    var gp = cv.getPointer(e.e);
+    sectionSt = { on: true, x0: sg(gp.x), y0: sg(gp.y), prev: null };
+  }
+});
+
+cv.on('mouse:move', function(e) {
+  // Calibration line preview
+  if (scaleModeOn && calibSt.pt1 && !calibSt.pt2) {
+    var p = cv.getPointer(e.e);
+    if (calibSt.prev) cv.remove(calibSt.prev);
+    calibSt.prev = new fabric.Line(
+      [calibSt.pt1.x, calibSt.pt1.y, p.x, p.y],
+      { stroke: '#FF3B30', strokeWidth: 1.5, strokeDashArray: [6, 3],
+        selectable: false, evented: false, _calib: true, opacity: 0.8 }
+    );
+    cv.add(calibSt.prev);
+    cv.renderAll();
+    return;
+  }
+
+  // Endpoint drag
+  if (epDragging) {
+    var p  = cv.getPointer(e.e);
+    var sp = { x: sg(p.x), y: sg(p.y) };
+    var HIT2 = SNAP_D;
+    cv.getObjects().forEach(function(o) {
+      if (o._tool !== 'wall' || o._prev) return;
+      wallEndpointsPt(o).forEach(function(ep, ei) {
+        if (o === epDragging.wall && ei === epDragging.idx) return;
+        if (Math.hypot(ep.x - p.x, ep.y - p.y) < HIT2) { sp = ep; }
+      });
+    });
+    moveLineEndpoint(epDragging.wall, epDragging.idx, sp.x, sp.y,
+                     epDragging.otherX, epDragging.otherY);
+    cv.requestRenderAll();
+    return;
+  }
+  // Wall body drag
+  if (bodyDragging) {
+    var p = cv.getPointer(e.e);
+    var dx = Math.round((p.x - bodyDragging.sx) / SNAP) * SNAP;
+    var dy = Math.round((p.y - bodyDragging.sy) / SNAP) * SNAP;
+    bodyDragging.wall.set({
+      x1: bodyDragging.ox1 + dx, y1: bodyDragging.oy1 + dy,
+      x2: bodyDragging.ox2 + dx, y2: bodyDragging.oy2 + dy,
+      left: bodyDragging.oleft + dx, top: bodyDragging.otop + dy
+    });
+    bodyDragging.wall.setCoords();
+    rebuildPts();
+    cv.requestRenderAll();
+    return;
+  }
+  // Section draw preview
+  if (sectionSt.on) {
+    var p  = cv.getPointer(e.e);
+    var x  = sg(p.x), y = sg(p.y);
+    var rx = Math.min(sectionSt.x0, x), ry = Math.min(sectionSt.y0, y);
+    var rw = Math.abs(x - sectionSt.x0), rh = Math.abs(y - sectionSt.y0);
+    if (sectionSt.prev) { cv.remove(sectionSt.prev); sectionSt.prev = null; }
+    if (rw > 4 && rh > 4) {
+      sectionSt.prev = new fabric.Rect({
+        left: rx, top: ry, width: rw, height: rh,
+        fill: 'rgba(100,100,100,0.05)', stroke: '#999',
+        strokeWidth: 1.5, strokeDashArray: [6, 3],
+        selectable: false, evented: false, _prev: true
+      });
+      cv.add(sectionSt.prev);
+    }
+    cv.renderAll();
+    return;
+  }
+  if (isPanning) {
+    var dx = e.e.clientX - lastPanX;
+    var dy = e.e.clientY - lastPanY;
+    cv.relativePan(new fabric.Point(dx, dy));
+    lastPanX = e.e.clientX;
+    lastPanY = e.e.clientY;
+    return;
+  }
+  if (activeTool !== 'wall') {
+    if (currentSnapPt) { currentSnapPt = null; cv.renderAll(); }
+    return;
+  }
+  var p  = cv.getPointer(e.e);
+  var sp = snapPt(p.x, p.y);
+  if (wallSt.on) {
+    var ap = snapAngle(wallSt.x1, wallSt.y1, sp.x, sp.y);
+    updateWallPrev(ap.x, ap.y);
+  } else {
+    cv.renderAll();
+  }
+});
+
+cv.on('mouse:out', function() {
+  if (currentSnapPt) { currentSnapPt = null; cv.renderAll(); }
+});
+
+cv.on('mouse:up', function(e) {
+  if (epDragging) {
+    epDragging = null;
+    rebuildPts();
+    updatePanel();
+    cv.setCursor('default');
+    return;
+  }
+  if (bodyDragging) {
+    bodyDragging.wall.setCoords();
+    bodyDragging = null;
+    rebuildPts();
+    updatePanel();
+    cv.selection = true;
+    cv.setCursor('default');
+    cv.renderAll();
+    debouncePushHistory();
+    return;
+  }
+  // Section draw finish
+  if (sectionSt.on) {
+    var p  = cv.getPointer(e.e);
+    var x  = sg(p.x), y = sg(p.y);
+    var rx = Math.min(sectionSt.x0, x), ry = Math.min(sectionSt.y0, y);
+    var rw = Math.abs(x - sectionSt.x0), rh = Math.abs(y - sectionSt.y0);
+    if (sectionSt.prev) { cv.remove(sectionSt.prev); }
+    sectionSt = { on: false, x0: 0, y0: 0, prev: null };
+    if (rw >= 20 && rh >= 20) {
+      placeSection(rx, ry, rw, rh);
+    } else {
+      cv.renderAll();
+    }
+    return;
+  }
+  if (isPanning) {
+    isPanning = false;
+    cv.setCursor(spaceDown ? 'grab' : (activeTool === 'select' ? 'default' : 'crosshair'));
+  }
+});
+
+cv.on('selection:created', function() { updatePanel(); });
+cv.on('selection:updated', function() { updatePanel(); });
+cv.on('selection:cleared', function() { showPanelEmpty(); });
+
+// ── Smart snap + distance display ────────────────────────
+function pxToRealDist(px) {
+  if (!pxPerM || px <= 0) return Math.round(px) + 'px';
+  var cm = px / pxPerM * 100;
+  if (cm >= 100) return parseFloat((cm / 100).toFixed(1)) + 'm';
+  return Math.round(cm) + 'cm';
+}
+
+cv.on('object:moving', function(e) {
+  var obj = e.target;
+  if (obj._tool === 'wall') return;
+  snapState = { vLine: null, hLine: null, dists: [] };
+
+  var zoom         = cv.getZoom();
+  var SNAP_THRESH  = 8  / zoom;
+  var RELEASE_THRESH = 16 / zoom;
+
+  var naturalLeft = obj.left;
+  var naturalTop  = obj.top;
+  var coordsDirty = false;
+
+  // Hysteresis: re-apply existing lock if still within release threshold
+  var lockedX = false, lockedY = false;
+  if (snapLock.x !== null) {
+    if (Math.abs(naturalLeft - snapLock.x.lockedLeft) < RELEASE_THRESH) {
+      obj.set('left', snapLock.x.lockedLeft);
+      snapState.vLine = snapLock.x.guideLine;
+      lockedX = true; coordsDirty = true;
+    } else {
+      snapLock.x = null;
+    }
+  }
+  if (snapLock.y !== null) {
+    if (Math.abs(naturalTop - snapLock.y.lockedTop) < RELEASE_THRESH) {
+      obj.set('top', snapLock.y.lockedTop);
+      snapState.hLine = snapLock.y.guideLine;
+      lockedY = true; coordsDirty = true;
+    } else {
+      snapLock.y = null;
+    }
+  }
+  if (coordsDirty) obj.setCoords();
+
+  // Search for new snaps only on unlocked axes
+  if (!lockedX || !lockedY) {
+    var bm = obj.getBoundingRect(true);
+    var ML = bm.left, MR = bm.left + bm.width,  MCX = ML + bm.width  / 2;
+    var MT = bm.top,  MB = bm.top  + bm.height, MCY = MT + bm.height / 2;
+
+    var bestDX = null, bestDXD = SNAP_THRESH, bestDXG = null;
+    var bestDY = null, bestDYD = SNAP_THRESH, bestDYG = null;
+
+    cv.getObjects().forEach(function(o) {
+      if (o === obj || o._bg || o._prev || !o._tool || o._tool === 'wall') return;
+      var bo = o.getBoundingRect(true);
+      var OL = bo.left, OR = OL + bo.width,  OCX = OL + bo.width  / 2;
+      var OT = bo.top,  OB = OT + bo.height, OCY = OT + bo.height / 2;
+      if (!lockedX) {
+        [[OL,ML],[OR,ML],[OL,MR],[OR,MR],[OCX,MCX]].forEach(function(p) {
+          var d = Math.abs(p[0] - p[1]);
+          if (d < bestDXD) { bestDXD = d; bestDX = p[0] - p[1]; bestDXG = p[0]; }
+        });
+      }
+      if (!lockedY) {
+        [[OT,MT],[OB,MT],[OT,MB],[OB,MB],[OCY,MCY]].forEach(function(p) {
+          var d = Math.abs(p[0] - p[1]);
+          if (d < bestDYD) { bestDYD = d; bestDY = p[0] - p[1]; bestDYG = p[0]; }
+        });
+      }
+    });
+
+    if (!lockedX && bestDX !== null) {
+      obj.set('left', naturalLeft + bestDX); obj.setCoords();
+      snapState.vLine = bestDXG;
+      snapLock.x = { lockedLeft: naturalLeft + bestDX, guideLine: bestDXG };
+    }
+    if (!lockedY && bestDY !== null) {
+      obj.set('top', naturalTop + bestDY); obj.setCoords();
+      snapState.hLine = bestDYG;
+      snapLock.y = { lockedTop: naturalTop + bestDY, guideLine: bestDYG };
+    }
+  }
+
+  // Distance measurements (always based on final position)
+  var nearL = null, nearR = null, nearT = null, nearB = null;
+  var bm2 = obj.getBoundingRect(true);
+  var ML2 = bm2.left, MR2 = ML2 + bm2.width, MT2 = bm2.top, MB2 = MT2 + bm2.height;
+
+  cv.getObjects().forEach(function(o) {
+    if (o === obj || o._bg || o._prev || !o._tool || o._tool === 'wall') return;
+    var bo = o.getBoundingRect(true);
+    var OL = bo.left, OR = OL + bo.width;
+    var OT = bo.top,  OB = OT + bo.height;
+    var vOvlp = OT < MB2 && OB > MT2;
+    var hOvlp = OL < MR2 && OR > ML2;
+    if (vOvlp) {
+      var midY = Math.max(OT,MT2) + (Math.min(OB,MB2) - Math.max(OT,MT2)) / 2;
+      if (OL >= MR2) { var g=OL-MR2; if (!nearR||g<nearR.gap) nearR={gap:g,x1:MR2,x2:OL,midY:midY}; }
+      if (OR <= ML2) { var g=ML2-OR; if (!nearL||g<nearL.gap) nearL={gap:g,x1:OR,x2:ML2,midY:midY}; }
+    }
+    if (hOvlp) {
+      var midX = Math.max(OL,ML2) + (Math.min(OR,MR2) - Math.max(OL,ML2)) / 2;
+      if (OT >= MB2) { var g=OT-MB2; if (!nearB||g<nearB.gap) nearB={gap:g,y1:MB2,y2:OT,midX:midX}; }
+      if (OB <= MT2) { var g=MT2-OB; if (!nearT||g<nearT.gap) nearT={gap:g,y1:OB,y2:MT2,midX:midX}; }
+    }
+  });
+
+  if (nearL) snapState.dists.push({ type:'h', x1:nearL.x1, x2:nearL.x2, y:nearL.midY, text:pxToRealDist(nearL.gap) });
+  if (nearR) snapState.dists.push({ type:'h', x1:nearR.x1, x2:nearR.x2, y:nearR.midY, text:pxToRealDist(nearR.gap) });
+  if (nearT) snapState.dists.push({ type:'v', x:nearT.midX, y1:nearT.y1, y2:nearT.y2, text:pxToRealDist(nearT.gap) });
+  if (nearB) snapState.dists.push({ type:'v', x:nearB.midX, y1:nearB.y1, y2:nearB.y2, text:pxToRealDist(nearB.gap) });
+});
+
+cv.on('object:scaling', function(e) {
+  var obj = e.target;
+  var walls = obj._tool === 'wall' ? [obj]
+    : obj.type === 'activeSelection' ? obj.getObjects().filter(function(o) { return o._tool === 'wall'; })
+    : [];
+  walls.forEach(function(w) { w.set({ scaleX: 1, scaleY: 1 }); w.setCoords(); });
+});
+
+cv.on('object:rotating', function(e) {
+  var obj = e.target;
+
+  if (obj._tool === 'wall') {
+    obj.set('angle', 0);
+    obj.setCoords();
+    return;
+  }
+
+  // ActiveSelection containing a wall: block rotation entirely.
+  // Fabric.js rotation on a multi-select bypasses lockRotation on individual
+  // objects and can corrupt Line scaleX/Y, producing absurd lengths.
+  if (obj.type === 'activeSelection') {
+    var containsWall = obj.getObjects().some(function(o) { return o._tool === 'wall'; });
+    if (containsWall) {
+      obj.set('angle', 0);
+      obj.setCoords();
+      cv.renderAll();
+      return;
+    }
+  }
+
+  var angle   = ((obj.angle % 360) + 360) % 360;
+  var step    = (obj._tool === 'door' || obj._tool === 'window') ? 15 : 90;
+  var thresh  = step < 45 ? 5 : 8;
+  var snapped = Math.round(angle / step) * step;
+  if (Math.abs(angle - snapped) < thresh) {
+    obj.set('angle', snapped % 360);
+    obj.setCoords();
+  }
+  updatePanel();
+});
+
+cv.on('object:modified', function(e) {
+  snapState = { vLine: null, hLine: null, dists: [] };
+  snapLock  = { x: null, y: null };
+  // Recover any wall that got accidentally rotated or scaled
+  // (e.g. via ActiveSelection before our guard fired, or on first load).
+  var targets = (e.target && e.target.type === 'activeSelection')
+    ? e.target.getObjects()
+    : (e.target ? [e.target] : []);
+  targets.forEach(function(o) {
+    if (o._tool !== 'wall') return;
+    var badAngle = Math.abs(o.angle || 0) > 0.01;
+    var badScale = Math.abs((o.scaleX || 1) - 1) > 0.01 || Math.abs((o.scaleY || 1) - 1) > 0.01;
+    if (!badAngle && !badScale) return;
+    // Bake the current visual endpoint positions, then reset transforms to identity
+    var eps = wallEndpointsPt(o);
+    o.set({
+      angle:  0, scaleX: 1, scaleY: 1,
+      x1: eps[0].x, y1: eps[0].y,
+      x2: eps[1].x, y2: eps[1].y,
+      left: (eps[0].x + eps[1].x) / 2,
+      top:  (eps[0].y + eps[1].y) / 2,
+      width:  Math.abs(eps[1].x - eps[0].x),
+      height: Math.abs(eps[1].y - eps[0].y)
+    });
+    o.setCoords();
+    makeWallEditable(o);
+  });
+  rebuildPts();
+  updatePanel();
+  debouncePushHistory();
+  refreshObjList();
+});
+
+// ── Wall Utilities ────────────────────────────────────────
+
+function rebuildPts() {
+  pts = [];
+  cv.getObjects().forEach(function(o) {
+    if (o._tool !== 'wall' || o._prev) return;
+    var eps = wallEndpointsPt(o);
+    pts.push(eps[0], eps[1]);
+  });
+}
+
+
+function moveLineEndpoint(wall, idx, x, y, otherX, otherY) {
+  // otherX/Y is the pre-recorded opposite endpoint (captured once at drag start).
+  // Never re-derive from calcTransformMatrix during drag — if scaleX/Y != 1
+  // (from a prior ActiveSelection op) the matrix blows up x1/y1/x2/y2.
+  var nx1 = idx === 0 ? x      : otherX;
+  var ny1 = idx === 0 ? y      : otherY;
+  var nx2 = idx === 0 ? otherX : x;
+  var ny2 = idx === 0 ? otherY : y;
+  wall.set({
+    x1: nx1, y1: ny1, x2: nx2, y2: ny2,
+    width:  Math.abs(nx2 - nx1),
+    height: Math.abs(ny2 - ny1),
+    left:   (nx1 + nx2) / 2,
+    top:    (ny1 + ny2) / 2,
+    angle:  0, scaleX: 1, scaleY: 1
+  });
+  wall.setCoords();
+  return true;
+}
+
+function makeWallEditable(wall) {
+  // Always re-apply — Fabric.js does NOT serialize hasControls/lockRotation,
+  // so after undo/redo they reset to defaults. The _wallReady guard was
+  // preventing re-initialization and causing rotation handles to reappear.
+  wall._wallReady    = true;
+  wall.hasControls   = false;
+  wall.hasBorders    = false;
+  wall.lockRotation  = true;
+  wall.lockScalingX  = true;
+  wall.lockScalingY  = true;
+  // Walls move ONLY via endpoint drag, not body drag.
+  wall.lockMovementX = true;
+  wall.lockMovementY = true;
+  // fabric.Line defaults to originX:'left', so getCenterPoint() = left + width/2.
+  // All our wall code sets left=(x1+x2)/2 (center), which is only correct for
+  // originX:'center' where getCenterPoint() = left directly. Without this fix,
+  // getCenterPoint() returns x2 (off by half the length), causing wallEndpointsPt
+  // to compute wrong positions → otherX drifts on every new drag → wall flies right.
+  wall.originX = 'center';
+  wall.originY = 'center';
+  wall.left    = (wall.x1 + wall.x2) / 2;
+  wall.top     = (wall.y1 + wall.y2) / 2;
+  wall.setCoords();
+}
+
+function applyWallEp(wall, idx, x, y, otherX, otherY) {
+  // Caller must supply the pre-recorded other-endpoint position.
+  var nx1 = idx === 0 ? x      : otherX;
+  var ny1 = idx === 0 ? y      : otherY;
+  var nx2 = idx === 0 ? otherX : x;
+  var ny2 = idx === 0 ? otherY : y;
+  wall.set({
+    x1: nx1, y1: ny1, x2: nx2, y2: ny2,
+    width: Math.abs(nx2 - nx1), height: Math.abs(ny2 - ny1),
+    left:  (nx1 + nx2) / 2,    top:    (ny1 + ny2) / 2,
+    angle: 0, scaleX: 1, scaleY: 1
+  });
+  wall.setCoords();
+}
+
+// ── Wall Drawing ──────────────────────────────────────────
+var DEF_SW = 6;  // default wall stroke width
+
+function startWall(x, y) {
+  // Don't add a zero-length preview yet — wait until mouse moves
+  wallSt = { on: true, x1: x, y1: y, prev: null };
+  cv.renderAll();  // redraw to show start-point dot via after:render
+}
+
+function updateWallPrev(x2, y2) {
+  if (wallSt.prev) { cv.remove(wallSt.prev); wallSt.prev = null; }
+  if (Math.hypot(x2 - wallSt.x1, y2 - wallSt.y1) < 3) { cv.renderAll(); return; }
+  var prev = new fabric.Line([wallSt.x1, wallSt.y1, x2, y2], {
+    stroke: '#3A3530', strokeWidth: DEF_SW, strokeLineCap: 'round',
+    selectable: false, evented: false, opacity: 0.4, _prev: true
+  });
+  cv.add(prev);
+  wallSt.prev = prev;
+  cv.renderAll();
+}
+
+function finishWall(x2, y2) {
+  if (!wallSt.on) return;
+  if (wallSt.prev) { cv.remove(wallSt.prev); wallSt.prev = null; }
+  var x1 = wallSt.x1, y1 = wallSt.y1;
+  wallSt = { on: false, x1: 0, y1: 0, prev: null };
+
+  if (Math.hypot(x2 - x1, y2 - y1) < 8) { cv.renderAll(); return; }
+
+  var wall = new fabric.Line([x1, y1, x2, y2], {
+    stroke: '#3A3530', strokeWidth: DEF_SW, strokeLineCap: 'round',
+    strokeUniform: true,
+    selectable: false, evented: false, _tool: 'wall'
+  });
+  cv.add(wall);
+  makeWallEditable(wall);
+  pts.push({ x: x1, y: y1 }, { x: x2, y: y2 });
+  countUp();
+  debouncePushHistory();
+
+  // Shift held → chain next segment; otherwise end drawing
+  if (shiftOn) {
+    startWall(x2, y2);
+  } else {
+    cv.renderAll();
+    setTool('select');
+  }
+}
+
+function cancelWall() {
+  if (wallSt.prev) { cv.remove(wallSt.prev); cv.renderAll(); }
+  wallSt = { on: false, x1: 0, y1: 0, prev: null };
+}
+
+// ── Door ─────────────────────────────────────────────────
+// Standard floor-plan door symbol:
+//   - Hinge at top-left (0,0)
+//   - Leaf: vertical line going DOWN (door shown OPEN, perpendicular to wall)
+//   - Arc: from tip of open leaf (0,w) sweeping CCW to wall position (w,0)
+//   - Hinge indicator: small filled circle at (0,0)
+//   Use flipX / flipY to change which side the door opens toward.
+function placeDoor(cx, cy) {
+  var w = DOOR_W;
+
+  // Leaf: door shown open (perpendicular to wall), going downward
+  var leaf = new fabric.Line([0, 0, 0, w], {
+    stroke: '#2D2A27', strokeWidth: 3, strokeLineCap: 'square', strokeUniform: true
+  });
+
+  // Arc: from tip of open leaf (0,w) CCW (sweep=0) to wall position (w,0)
+  // Traces the lower-right quarter-circle → shows the swing zone
+  var arc = new fabric.Path(
+    'M 0 ' + w + ' A ' + w + ' ' + w + ' 0 0 0 ' + w + ' 0',
+    { stroke: '#7E7970', strokeWidth: 1.2, fill: 'transparent', strokeDashArray: [5, 3] }
+  );
+
+  // Hinge indicator: small circle at (0,0)
+  var hinge = new fabric.Circle({
+    left: -4, top: -4, radius: 4,
+    fill: '#2D2A27', stroke: 'none'
+  });
+
+  var grp = new fabric.Group([arc, leaf, hinge], {
+    originX: 'center', originY: 'center',  // center origin → left/top = center = stable rotation
+    selectable: true, evented: true,
+    hasControls: true, hasBorders: true, borderColor: '#4F46E5',
+    lockScalingX: true, lockScalingY: true,
+    _tool: 'door', _doorW: w
+  });
+  // Place left-top (hinge) at click point; with center origin, left/top stays
+  // at the bbox center during rotation — no per-frame coordinate recalculation.
+  grp.setPositionByOrigin(new fabric.Point(cx, cy), 'left', 'top');
+  grp.setControlsVisibility({ tl:false, tr:false, br:false, bl:false, mt:false, mb:false, ml:false, mr:false, mtr:true });
+  cv.add(grp);
+  cv.setActiveObject(grp);
+  cv.renderAll();
+  updatePanel();
+  countUp();
+  debouncePushHistory();
+  setTool('select');
+}
+
+// ── Window ────────────────────────────────────────────────
+function placeWin(cx, cy) {
+  var w = WIN_W, h = 8;
+  // Architectural window symbol: outer frame + two glazing lines
+  var frame = new fabric.Rect({
+    left: 0, top: 0, width: w, height: h,
+    fill: '#D8EEF7', stroke: '#3A3530', strokeWidth: 1.5, rx: 0
+  });
+  var g1 = new fabric.Line([3, 2.5, w - 3, 2.5], {
+    stroke: '#6AAABF', strokeWidth: 0.8
+  });
+  var g2 = new fabric.Line([3, 5.5, w - 3, 5.5], {
+    stroke: '#6AAABF', strokeWidth: 0.8
+  });
+  var grp = new fabric.Group([frame, g1, g2], {
+    originX: 'center', originY: 'center',
+    selectable: true, evented: true,
+    hasControls: true, hasBorders: true, borderColor: '#4F46E5',
+    lockScalingY: true,
+    _tool: 'window', _winW: w
+  });
+  grp.setPositionByOrigin(new fabric.Point(cx, cy), 'center', 'center');
+  grp.setControlsVisibility({ tl:false, tr:false, br:false, bl:false, mt:false, mb:false, ml:false, mr:false, mtr:true });
+  cv.add(grp);
+  cv.setActiveObject(grp);
+  cv.renderAll();
+  updatePanel();
+  countUp();
+  debouncePushHistory();
+  setTool('select');
+}
+
+// ── Column ────────────────────────────────────────────────
+function placeCol(cx, cy) {
+  var s = COL_S;
+  var col = new fabric.Rect({
+    left: cx, top: cy,
+    originX: 'center', originY: 'center',
+    width: s, height: s,
+    fill: '#3A3530', stroke: '#1C1C1E', strokeWidth: 1.5, rx: 2,
+    selectable: true, evented: true,
+    hasControls: true, hasBorders: true,
+    lockRotation: false,
+    _tool: 'column'
+  });
+  cv.add(col);
+  cv.setActiveObject(col);
+  updatePanel();
+  countUp();
+  debouncePushHistory();
+  setTool('select');
+}
+
+function flipObject(axis) {
+  var obj = cv.getActiveObject();
+  if (!obj) return;
+  if (axis === 'x') obj.set('flipX', !obj.flipX);
+  else               obj.set('flipY', !obj.flipY);
+  cv.renderAll();
+  debouncePushHistory();
+}
+
+// dir: 'cw' (시계방향 90°) or 'ccw' (반시계방향 90°)
+// Canvas coords are y-down: CW means new_x = -(y-cy)+cx, new_y = (x-cx)+cy
+function rotateMap(dir) {
+  var objs = cv.getObjects().filter(function(o) {
+    return !o._prev && !o._calib;
+  });
+  if (!objs.length) { toast('회전할 오브젝트가 없습니다'); return; }
+
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  objs.forEach(function(o) {
+    var br = o.getBoundingRect(true);
+    minX = Math.min(minX, br.left);
+    maxX = Math.max(maxX, br.left + br.width);
+    minY = Math.min(minY, br.top);
+    maxY = Math.max(maxY, br.top + br.height);
+  });
+  var cx = (minX + maxX) / 2;
+  var cy = (minY + maxY) / 2;
+  var sign = (dir === 'cw') ? 1 : -1;
+
+  objs.forEach(function(o) {
+    if (o._tool === 'wall') {
+      var eps = wallEndpointsPt(o);
+      var nx1 = -sign*(eps[0].y - cy) + cx,  ny1 = sign*(eps[0].x - cx) + cy;
+      var nx2 = -sign*(eps[1].y - cy) + cx,  ny2 = sign*(eps[1].x - cx) + cy;
+      o.set({
+        x1: nx1, y1: ny1, x2: nx2, y2: ny2,
+        width: Math.abs(nx2 - nx1), height: Math.abs(ny2 - ny1),
+        left: (nx1 + nx2) / 2, top: (ny1 + ny2) / 2,
+        angle: 0, scaleX: 1, scaleY: 1
+      });
+    } else {
+      var cp = o.getCenterPoint();
+      var dx = cp.x - cx, dy = cp.y - cy;
+      var nx = -sign*dy + cx, ny = sign*dx + cy;
+      var newAngle = ((o.angle || 0) + sign*90 + 360) % 360;
+      o.set('angle', newAngle);
+      o.setPositionByOrigin(new fabric.Point(nx, ny), 'center', 'center');
+    }
+    o.setCoords();
+  });
+
+  cv.discardActiveObject();
+  rebuildPts();
+  cv.renderAll();
+  debouncePushHistory();
+  toast(dir === 'cw' ? '맵 90° 시계방향 회전' : '맵 90° 반시계방향 회전');
+}
+
+function applyColumnSize() {
+  var obj = cv.getActiveObject();
+  if (!obj || obj._tool !== 'column') return;
+  var wVal = parseFloat(document.getElementById('pv-cw').value) || 1;
+  var hVal = parseFloat(document.getElementById('pv-ch').value) || 1;
+  var wpx  = pxPerM ? wVal / 1000 * pxPerM : wVal;
+  var hpx  = pxPerM ? hVal / 1000 * pxPerM : hVal;
+  obj.set({ width: Math.max(4, wpx), height: Math.max(4, hpx) });
+  obj.setCoords();
+  cv.renderAll();
+  debouncePushHistory();
+}
+
+// ── Panel ─────────────────────────────────────────────────
+var LABELS = { wall: '벽', door: '문', window: '창문', column: '기둥' };
+
+function updatePanel() {
+  var obj = cv.getActiveObject();
+  if (!obj) return;
+  document.getElementById('pempty').style.display = 'none';
+  document.getElementById('pobj').style.display   = 'block';
+
+  var lbl;
+  if (obj._tool === 'section') {
+    lbl = obj._sectionType === 'MEETING' ? '회의실' : '구역';
+  } else if (obj._tool === 'furniture') {
+    lbl = obj._name || PRESETS[obj._preset] && PRESETS[obj._preset].label || '가구';
+  } else {
+    lbl = LABELS[obj._tool] || '요소';
+  }
+  document.getElementById('pv-type').textContent = lbl;
+
+  var prSize   = document.getElementById('pr-size');
+  var prStroke = document.getElementById('pr-stroke');
+  var prFlip   = document.getElementById('pr-flip');
+  var prWH     = document.getElementById('pr-wh');
+  var prCol    = document.getElementById('pr-col');
+  var prSname  = document.getElementById('pr-sname');
+  var prStype  = document.getElementById('pr-stype');
+
+  var prAngle  = document.getElementById('pr-angle');
+  var prColor  = document.getElementById('pr-color');
+  prSize.style.display   = 'none';
+  prStroke.style.display = 'none';
+  prFlip.style.display   = 'none';
+  prWH.style.display     = 'none';
+  prCol.style.display    = 'none';
+  prSname.style.display  = 'none';
+  prStype.style.display  = 'none';
+  prAngle.style.display  = 'none';
+  prColor.style.display  = 'none';
+
+  if (obj._tool === 'wall') {
+    var len = Math.round(Math.hypot((obj.x2 - obj.x1) * obj.scaleX, (obj.y2 - obj.y1) * obj.scaleY));
+    if (pxPerM) {
+      document.getElementById('pv-size').textContent = Math.round(len / pxPerM * 1000).toLocaleString() + ' mm';
+    } else {
+      document.getElementById('pv-size').textContent = len + ' px';
+    }
+    document.getElementById('pr-size').querySelector('.plbl').textContent = '길이';
+    prSize.style.display   = 'block';
+    var sw = obj.strokeWidth || DEF_SW;
+    document.getElementById('pv-stroke').value = sw;
+    document.getElementById('pv-stroke-val').textContent = sw;
+    prStroke.style.display = 'block';
+  } else if (obj._tool === 'door' || obj._tool === 'window') {
+    prFlip.style.display = 'block';
+    var sizePx = obj._tool === 'door' ? (obj._doorW || DOOR_W) : (obj._winW || WIN_W);
+    var sizeLabel = pxPerM ? Math.round(sizePx / pxPerM * 1000) + ' mm' : sizePx + ' px';
+    document.getElementById('pv-size').textContent = sizeLabel;
+    document.getElementById('pr-size').querySelector('.plbl').textContent = obj._tool === 'door' ? '폭' : '폭';
+    prSize.style.display = 'block';
+  } else if (obj._tool === 'furniture') {
+    prWH.style.display = 'block';
+    var wpx = obj.width  * (obj.scaleX || 1);
+    var hpx = obj.height * (obj.scaleY || 1);
+    var unit = pxPerM ? 'cm' : 'px';
+    var wVal = pxPerM ? Math.round(wpx / pxPerM * 100) : Math.round(wpx);
+    var hVal = pxPerM ? Math.round(hpx / pxPerM * 100) : Math.round(hpx);
+    document.getElementById('pv-fw').value = wVal;
+    document.getElementById('pv-fh').value = hVal;
+    document.getElementById('pv-fw-unit').textContent = unit;
+    document.getElementById('pv-fh-unit').textContent = unit;
+  } else if (obj._tool === 'column') {
+    prCol.style.display = 'block';
+    var wpx = obj.width  * (obj.scaleX || 1);
+    var hpx = obj.height * (obj.scaleY || 1);
+    var unit = pxPerM ? 'mm' : 'px';
+    document.getElementById('pv-cw').value = pxPerM ? Math.round(wpx / pxPerM * 1000) : Math.round(wpx);
+    document.getElementById('pv-ch').value = pxPerM ? Math.round(hpx / pxPerM * 1000) : Math.round(hpx);
+    document.getElementById('pv-cw-unit').textContent = unit;
+    document.getElementById('pv-ch-unit').textContent = unit;
+  } else if (obj._tool === 'section') {
+    prSname.style.display = 'block';
+    prStype.style.display = 'block';
+    document.getElementById('pv-sname').value = obj._name || '';
+    document.getElementById('pv-stype').value = obj._sectionType || 'SECTION';
+  }
+
+  // Color picker — wall shows stroke, others show fill
+  if (obj._tool === 'wall') {
+    prColor.style.display = 'block';
+    document.getElementById('pv-fill-color').value = rgbToHex(obj.stroke || '#3A3530');
+  } else if (obj._tool === 'furniture' || obj._tool === 'column' || obj._tool === 'section') {
+    prColor.style.display = 'block';
+    document.getElementById('pv-fill-color').value = rgbToHex(obj.fill || '#EDE5D8');
+  }
+
+  var angleInput = document.getElementById('pv-angle');
+  document.getElementById('pr-angle').style.display = '';
+  if (obj._tool === 'wall') {
+    // Show wall direction angle (read-only: wall angle changes via endpoint drag)
+    var deg = Math.round(Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1) * 180 / Math.PI);
+    angleInput.value    = deg;
+    angleInput.disabled = true;
+    angleInput.title    = '벽 방향각 (끝점을 드래그해 변경)';
+  } else {
+    angleInput.value    = Math.round(obj.angle || 0);
+    angleInput.disabled = false;
+    angleInput.title    = '';
+  }
+}
+
+function applyStroke(v) {
+  var obj = cv.getActiveObject();
+  if (!obj || obj._tool !== 'wall') return;
+  obj.set('strokeWidth', parseInt(v));
+  document.getElementById('pv-stroke-val').textContent = v;
+  cv.renderAll();
+}
+
+function applyFurnitureSize() {
+  var obj = cv.getActiveObject();
+  if (!obj || obj._tool !== 'furniture') return;
+  var wVal = parseFloat(document.getElementById('pv-fw').value) || 1;
+  var hVal = parseFloat(document.getElementById('pv-fh').value) || 1;
+  var wpx = pxPerM ? wVal / 100 * pxPerM : wVal;
+  var hpx = pxPerM ? hVal / 100 * pxPerM : hVal;
+  if (obj.type === 'rect') {
+    obj.set({ width: Math.max(10, wpx), height: Math.max(10, hpx) });
+  } else {
+    var curW = obj.width  * (obj.scaleX || 1);
+    var curH = obj.height * (obj.scaleY || 1);
+    obj.scaleX = (obj.scaleX || 1) * (Math.max(10, wpx) / curW);
+    obj.scaleY = (obj.scaleY || 1) * (Math.max(10, hpx) / curH);
+  }
+  obj.setCoords();
+  cv.renderAll();
+}
+
+function applySectionType(type) {
+  var obj = cv.getActiveObject();
+  if (!obj || obj._tool !== 'section') return;
+  obj._sectionType = type;
+  if (type === 'MEETING') {
+    obj.set({ fill: 'rgba(79,70,229,0.12)', stroke: '#4F46E5' });
+  } else {
+    obj.set({ fill: 'rgba(100,100,100,0.08)', stroke: '#AAAAAA' });
+  }
+  document.getElementById('pv-type').textContent = type === 'MEETING' ? '회의실' : '구역';
+  cv.renderAll();
+}
+
+function applySectionName(val) {
+  var obj = cv.getActiveObject();
+  if (!obj || obj._tool !== 'section') return;
+  obj._name = val;
+}
+
+function rgbToHex(color) {
+  if (!color || color === 'transparent') return '#000000';
+  if (color.charAt(0) === '#') {
+    return color.length === 4
+      ? '#' + color[1]+color[1]+color[2]+color[2]+color[3]+color[3]
+      : color.slice(0,7);
+  }
+  var m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!m) return '#000000';
+  return '#' + [m[1],m[2],m[3]].map(function(c) {
+    return parseInt(c).toString(16).padStart(2,'0');
+  }).join('');
+}
+
+function darkenHex(hex, factor) {
+  var r = Math.round(parseInt(hex.slice(1,3),16) * factor);
+  var g = Math.round(parseInt(hex.slice(3,5),16) * factor);
+  var b = Math.round(parseInt(hex.slice(5,7),16) * factor);
+  return '#' + [r,g,b].map(function(c) {
+    return Math.max(0, Math.min(255, c)).toString(16).padStart(2,'0');
+  }).join('');
+}
+
+function applyObjColor(hex) {
+  var obj = cv.getActiveObject();
+  if (!obj) return;
+  if (obj._tool === 'wall') {
+    obj.set('stroke', hex);
+  } else if (obj._tool === 'section') {
+    var cur = obj.fill || 'rgba(100,100,100,0.08)';
+    var am = cur.match(/rgba?\([^)]+,\s*([\d.]+)\)/);
+    var alpha = am ? parseFloat(am[1]) : 0.08;
+    var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    obj.set('fill', 'rgba('+r+','+g+','+b+','+alpha+')');
+    obj.set('stroke', darkenHex(hex, 0.75));
+  } else {
+    obj.set('fill', hex);
+    obj.set('stroke', darkenHex(hex, 0.75));
+  }
+  cv.renderAll();
+  debouncePushHistory();
+}
+
+function showPanelEmpty() {
+  document.getElementById('pempty').style.display = 'block';
+  document.getElementById('pobj').style.display   = 'none';
+}
+
+function applyAngleFromPanel(v) {
+  var obj = cv.getActiveObject();
+  if (!obj || obj._tool === 'wall') return;
+  obj.set('angle', parseFloat(v) || 0);
+  cv.renderAll();
+}
+
+// ── Counter / Delete ──────────────────────────────────────
+function countUp() {
+  var n = cv.getObjects().filter(function(o) { return !o._bg && !o._prev; }).length;
+  document.getElementById('bb-count').textContent = '오브젝트 ' + n + '개';
+  refreshObjList();
+}
+
+function deleteSelected() {
+  if (scaleModeOn) return;
+  var sel = cv.getActiveObjects();
+  if (!sel.length) return;
+  sel.forEach(function(o) { if (!o._bg) cv.remove(o); });
+  cv.discardActiveObject();
+  cv.renderAll();
+  showPanelEmpty();
+  countUp();
+  debouncePushHistory();
+}
+
+// ── Background Image ──────────────────────────────────────
+function onBgFile(e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function(ev) {
+    if (bgImg) { cv.remove(bgImg); bgImg = null; }
+    fabric.Image.fromURL(ev.target.result, function(img) {
+      var sc = Math.min((cW - 40) / img.width, (cH - 40) / img.height, 1);
+      img.set({
+        left: cW / 2, top: cH / 2,
+        originX: 'center', originY: 'center',
+        scaleX: sc, scaleY: sc,
+        opacity: 0.35,
+        selectable: false, evented: false,
+        hasControls: false, hasBorders: false,
+        _bg: true
+      });
+      cv.add(img);
+      cv.sendToBack(img);
+      bgImg = img;
+      cv.renderAll();
+      enterScaleMode();
+    });
+  };
+  rd.readAsDataURL(f);
+  e.target.value = '';
+}
+
+function setBgOpacity(v) {
+  document.getElementById('bgopa-val').textContent = v + '%';
+  if (bgImg) { bgImg.set('opacity', parseInt(v) / 100); cv.renderAll(); }
+}
+
+function toggleBg() {
+  if (!bgImg) return;
+  bgOn = !bgOn;
+  bgImg.set('opacity', bgOn ? parseInt(document.getElementById('bgopa').value) / 100 : 0);
+  document.getElementById('btn-toggle-bg').textContent = bgOn ? '숨기기' : '보이기';
+  cv.renderAll();
+}
+
+function removeBg() {
+  if (!bgImg) return;
+  if (!confirm('배경 도면을 제거할까요?')) return;
+  cancelOcvDetect();
+  clearCalibObjects();
+  cv.remove(bgImg);
+  bgImg = null;
+  bgOn  = true;
+  scaleModeOn = false;
+  cv.defaultCursor = 'default';
+  document.getElementById('bupload').style.display = 'flex';
+  document.getElementById('bgctrl').style.display  = 'none';
+  document.getElementById('scale-panel').style.display = 'none';
+  setTool('select');
+  cv.renderAll();
+}
+
+function enterScaleMode() {
+  scaleModeOn = true;
+  calibSt = { pt1: null, pt2: null, dot1: null, dot2: null, line: null, prev: null, pxLen: 0 };
+
+  // Image is locked — no resize, no move during calibration
+  bgImg.set({ selectable: false, evented: false, hasControls: false, hasBorders: false });
+
+  // All canvas objects locked, crosshair cursor
+  cv.selection     = false;
+  cv.defaultCursor = 'crosshair';
+  cv.hoverCursor   = 'crosshair';
+  cv.discardActiveObject();
+  cv.forEachObject(function(o) { o.selectable = false; o.evented = false; });
+  cv.renderAll();
+
+  document.getElementById('bupload').style.display = 'none';
+  document.getElementById('bgctrl').style.display  = 'none';
+  document.getElementById('scale-panel').style.display = 'block';
+  document.getElementById('calib-step1').style.display = 'block';
+  document.getElementById('calib-step2').style.display = 'none';
+  flashHint('두 점을 클릭해서 측정 선을 그으세요');
+}
+
+function finishCalibLine(pt1, pt2) {
+  var pxLen = Math.round(Math.hypot(pt2.x - pt1.x, pt2.y - pt1.y));
+  if (pxLen < 5) { toast('선이 너무 짧습니다. 다시 그려주세요'); resetCalib(); return; }
+  calibSt.pxLen = pxLen;
+
+  calibSt.line = new fabric.Line([pt1.x, pt1.y, pt2.x, pt2.y], {
+    stroke: '#FF3B30', strokeWidth: 2,
+    selectable: false, evented: false, _calib: true
+  });
+  calibSt.dot2 = new fabric.Circle({
+    left: pt2.x, top: pt2.y, radius: 5,
+    fill: '#FF3B30', stroke: '#fff', strokeWidth: 1.5,
+    originX: 'center', originY: 'center',
+    selectable: false, evented: false, _calib: true
+  });
+
+  // Midpoint label
+  var mx = (pt1.x + pt2.x) / 2, my = (pt1.y + pt2.y) / 2;
+  calibSt.lbl = new fabric.Text(pxLen + ' px', {
+    left: mx, top: my - 16, originX: 'center',
+    fontSize: 10, fill: '#FF3B30', fontWeight: '700',
+    selectable: false, evented: false, _calib: true,
+    shadow: new fabric.Shadow({ color: '#fff', blur: 4, offsetX: 0, offsetY: 0 })
+  });
+
+  cv.add(calibSt.line);
+  cv.add(calibSt.dot2);
+  cv.add(calibSt.lbl);
+  cv.renderAll();
+
+  document.getElementById('calib-px-len').textContent = pxLen;
+  document.getElementById('calib-step1').style.display = 'none';
+  document.getElementById('calib-step2').style.display = 'block';
+  updateCalibLabel();  // pre-fill grid-mm with snapped estimate
+  document.getElementById('scale-meters').focus();
+  flashHint('거리를 확인하고 격자 크기를 조정하세요');
+}
+
+function clearCalibObjects() {
+  cv.getObjects().filter(function(o) { return o._calib; }).forEach(function(o) { cv.remove(o); });
+  calibSt = { pt1: null, pt2: null, dot1: null, dot2: null, line: null, prev: null, pxLen: 0 };
+}
+
+function resetCalib() {
+  clearCalibObjects();
+  cv.renderAll();
+  document.getElementById('calib-step1').style.display = 'block';
+  document.getElementById('calib-step2').style.display = 'none';
+  flashHint('두 점을 클릭해서 측정 선을 그으세요');
+}
+
+function cancelCalib() {
+  clearCalibObjects();
+  scaleModeOn = false;
+  bgImg.set({ selectable: false, evented: false });
+  cv.defaultCursor = 'default';
+  document.getElementById('scale-panel').style.display = 'none';
+  document.getElementById('bgctrl').style.display = 'block';
+  setTool('select');
+  cv.renderAll();
+  toast('축척 설정 취소');
+}
+
+function confirmScale() {
+  if (!calibSt.pxLen) { toast('먼저 측정 선을 그으세요'); return; }
+  var gridMm = parseInt(document.getElementById('grid-mm').value);
+  if (!gridMm || gridMm < 10) { toast('격자 크기를 확인하세요'); return; }
+
+  pxPerM = GRID / (gridMm / 1000);
+
+  clearCalibObjects();
+  bgImg.set({ selectable: false, evented: false, hasControls: false, hasBorders: false });
+  scaleModeOn = false;
+
+  cv.defaultCursor = 'default';
+  document.getElementById('scale-panel').style.display = 'none';
+  document.getElementById('bgctrl').style.display = 'block';
+
+  setTool('select');
+  cv.renderAll();
+
+  document.getElementById('scale-info').textContent = '1칸 = ' + gridMm + ' mm';
+  toast('축척 확정 — 1칸 = ' + gridMm + ' mm');
+}
+
+function updateCalibLabel() {
+  if (!calibSt.pxLen) return;
+  var m = parseFloat(document.getElementById('scale-meters').value) || 0;
+  if (m <= 0) return;
+  var rawMm    = GRID / (calibSt.pxLen / m) * 1000;
+  var snapped  = Math.round(rawMm / 10) * 10;
+  snapped      = Math.max(10, snapped);
+  document.getElementById('grid-mm').value = snapped;
+  document.getElementById('scale-info').textContent = '1칸 ≈ ' + snapped + ' mm';
+}
+
+function adjustGridMm(delta) {
+  var inp = document.getElementById('grid-mm');
+  var v   = (parseInt(inp.value) || 500) + delta;
+  inp.value = Math.max(10, v);
+  onGridMmChange();
+}
+
+function onGridMmChange() {
+  var v = parseInt(document.getElementById('grid-mm').value) || 0;
+  if (v > 0) document.getElementById('scale-info').textContent = '1칸 = ' + v + ' mm';
+}
+
+// ── Keyboard ──────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Shift') shiftOn = true;
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (!spaceDown) { spaceDown = true; cv.setCursor('grab'); }
+    return;
+  }
+  // Ctrl/Cmd shortcuts (work even in inputs for undo/copy)
+  if (e.ctrlKey || e.metaKey) {
+    switch (e.key.toLowerCase()) {
+      case 'z': e.preventDefault(); e.shiftKey ? redo() : undo(); return;
+      case 'y': e.preventDefault(); redo(); return;
+      case 'c': e.preventDefault(); copySelected(); return;
+      case 'v': e.preventDefault(); pasteClipboard(); return;
+      case 'a': {
+        e.preventDefault();
+        var selectables = cv.getObjects().filter(function(o) {
+          if (o._bg || o._prev || o._calib) return false;
+          return currentStep === 2
+            ? (o._tool === 'furniture' || o._tool === 'section')
+            : (o._tool && o._tool !== 'furniture' && o._tool !== 'section');
+        });
+        if (selectables.length === 1) { cv.setActiveObject(selectables[0]); }
+        else if (selectables.length > 1) { cv.setActiveObject(new fabric.ActiveSelection(selectables, { canvas: cv })); }
+        cv.renderAll(); return;
+      }
+      case 'd': {
+        e.preventDefault();
+        if (!cv.getActiveObject()) return;
+        copySelected();
+        var savedDelta = _pasteDelta;
+        _pasteDelta = 0;
+        pasteClipboard();
+        _pasteDelta = savedDelta;
+        return;
+      }
+      case 'g': {
+        e.preventDefault();
+        var ao = cv.getActiveObject();
+        if (ao && ao.type === 'group' && ao._tool === 'group') {
+          // Ctrl+G on existing group → ungroup
+          var items = ao._objects.slice();
+          var m = ao.calcTransformMatrix();
+          cv.discardActiveObject();
+          cv.remove(ao);
+          items.forEach(function(item) {
+            var pt = fabric.util.transformPoint(
+              new fabric.Point(item.left || 0, item.top || 0), m);
+            item.set({ left: pt.x, top: pt.y, angle: (item.angle||0)+(ao.angle||0) });
+            item.setCoords();
+            cv.add(item);
+          });
+          var sel = new fabric.ActiveSelection(items, { canvas: cv });
+          cv.setActiveObject(sel); cv.renderAll(); debouncePushHistory();
+          refreshObjList();
+          toast('그룹 해제');
+        } else {
+          // Group (not walls)
+          var objs = cv.getActiveObjects().filter(function(o) { return o._tool !== 'wall'; });
+          if (objs.length < 2) { toast('그룹핑할 오브젝트를 2개 이상 선택하세요'); return; }
+          cv.discardActiveObject();
+          var grp = new fabric.Group(objs, {
+            originX: 'center', originY: 'center',
+            selectable: true, evented: true,
+            hasControls: true, hasBorders: true,
+            _tool: 'group'
+          });
+          objs.forEach(function(o) { cv.remove(o); });
+          cv.add(grp); cv.setActiveObject(grp); cv.renderAll(); debouncePushHistory();
+          refreshObjList();
+          toast('그룹 생성 (' + objs.length + '개)');
+        }
+        return;
+      }
+    }
+  }
+  var tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  switch (e.key) {
+    case 'Escape':
+      cancelWall(); cancelSection();
+      if (activeTool === 'section') setTool('select');
+      cv.discardActiveObject(); cv.renderAll(); break;
+    case 'Delete':
+    case 'Backspace': deleteSelected(); break;
+    case 'v': case 'V': if (!e.ctrlKey && !e.metaKey) setTool('select'); break;
+    case 'w': case 'W': setTool('wall');   break;
+    case 'd': case 'D': if (!e.ctrlKey && !e.metaKey) setTool('door'); break;
+    case 'n': case 'N': setTool('window'); break;
+    case 'c': case 'C': if (!e.ctrlKey && !e.metaKey) setTool('column'); break;
+    case 'ArrowLeft': case 'ArrowRight': case 'ArrowUp': case 'ArrowDown': {
+      var ao = cv.getActiveObject();
+      if (!ao) break;
+      e.preventDefault();
+      var step = e.shiftKey ? SNAP : 1;
+      var dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+      var dy = e.key === 'ArrowUp'   ? -step : e.key === 'ArrowDown'  ? step : 0;
+      var moveObj = function(o) {
+        if (o._tool === 'wall') {
+          o.set({ x1: o.x1+dx, y1: o.y1+dy, x2: o.x2+dx, y2: o.y2+dy,
+                  left: o.left+dx, top: o.top+dy });
+          o.setCoords();
+        } else {
+          o.set({ left: o.left+dx, top: o.top+dy }); o.setCoords();
+        }
+      };
+      if (ao.type === 'activeSelection') { ao.getObjects().forEach(moveObj); ao.setCoords(); }
+      else moveObj(ao);
+      rebuildPts(); cv.renderAll(); debouncePushHistory();
+      break;
+    }
+  }
+});
+document.addEventListener('keyup', function(e) {
+  if (e.key === 'Shift') shiftOn = false;
+  if (e.key === ' ') {
+    spaceDown = false;
+    cv.setCursor(activeTool === 'select' ? 'default' : 'crosshair');
+  }
+});
+
+// ── Step Management ───────────────────────────────────────
+var currentStep = 1;
+var furnitureCnt = 0;
+
+var PRESETS = {
+  desk1:     { label: '책상',   cap: 1, w: 80,  h: 55, fill: '#EDE5D8', sk: '#C4B5A5', wM: 1.4, hM: 0.70 },
+  partition: { label: '파티션', cap: 0, w: 120, h: 8,  fill: '#C8BFB8', sk: '#9E9590', wM: 1.5, hM: 0.05 },
+  sofa:      { label: '소파',   cap: 3, w: 120, h: 48, fill: '#D8CFC8', sk: '#B8AFA8', wM: 1.8, hM: 0.80 },
+};
+
+var sectionSt = { on: false, x0: 0, y0: 0, prev: null };
+
+function goToStep(n) {
+  currentStep = n;
+
+  // Step indicator
+  document.querySelectorAll('.step').forEach(function(el, i) {
+    el.classList.remove('active', 'done', 'pending');
+    if      (i + 1 < n)  el.classList.add('done');
+    else if (i + 1 === n) el.classList.add('active');
+    else                  el.classList.add('pending');
+  });
+
+  // Sidebar content
+  var sb = document.getElementById('main-sidebar');
+  document.getElementById('s1-tools').style.display   = n === 1 ? 'contents' : 'none';
+  document.getElementById('s2-presets').style.display = n === 2 ? 'flex'     : 'none';
+  if (n === 2) sb.classList.add('s2'); else sb.classList.remove('s2');
+
+  // Right panel
+  document.getElementById('panel-normal').style.display = n === 3 ? 'none' : 'flex';
+  document.getElementById('panel-step3').style.display  = n === 3 ? 'flex' : 'none';
+
+  // Bottom bar
+  var prevBtn = document.getElementById('bb-prev');
+  prevBtn.disabled = (n === 1);
+  var labels = ['', '요소 배치', '세부 정보', '완료'];
+  document.getElementById('bb-next-label').textContent = labels[n] || '완료';
+  var hint = document.getElementById('bb-hint');
+  hint.innerHTML = n === 1
+    ? '<kbd>Shift</kbd>+클릭 연속벽 · <kbd>방향키</kbd> 이동 · <kbd>Shift</kbd>+<kbd>방향키</kbd> 5px · <kbd>Ctrl</kbd>+드래그 팬 · <kbd>Del</kbd> 삭제'
+    : n === 2
+      ? '<kbd>Ctrl</kbd>+<kbd>A</kbd> 전체선택 · <kbd>Ctrl</kbd>+<kbd>D</kbd> 복제 · <kbd>Ctrl</kbd>+<kbd>G</kbd> 그룹 · <kbd>방향키</kbd> 이동 · <kbd>Del</kbd> 삭제'
+      : '항목을 클릭하면 상세 정보를 입력할 수 있습니다';
+
+  // Canvas mode
+  cancelWall();
+  if (n === 1) {
+    // Structure editable, furniture locked
+    cv.forEachObject(function(o) {
+      if (o._bg || o._prev) return;
+      var isStructure = (o._tool && o._tool !== 'furniture');
+      o.selectable = isStructure;
+      o.evented    = isStructure;
+      if (isStructure && o._tool === 'wall') makeWallEditable(o);
+    });
+    setTool('select');
+  } else if (n === 2) {
+    // Structure locked, furniture + section selectable
+    cv.forEachObject(function(o) {
+      if (o._bg || o._prev) return;
+      var isInteractive = (o._tool === 'furniture' || o._tool === 'section');
+      o.selectable = isInteractive;
+      o.evented    = isInteractive;
+    });
+    setTool('select');
+    cv.discardActiveObject();
+    cv.renderAll();
+  } else if (n === 3) {
+    // All locked, show element list
+    cv.forEachObject(function(o) { o.selectable = false; o.evented = false; });
+    cv.discardActiveObject();
+    cv.renderAll();
+    buildElementList();
+  }
+  refreshObjList();
+}
+
+function goNext() {
+  if (currentStep < 3) goToStep(currentStep + 1);
+  else saveAll();
+}
+function goBack() {
+  if (currentStep > 1) goToStep(currentStep - 1);
+}
+
+// ── Section Placement ─────────────────────────────────────
+function placeSection(x, y, w, h) {
+  furnitureCnt++;
+  var id = 'SEC-' + String(furnitureCnt).padStart(2, '0');
+  var rect = new fabric.Rect({
+    left: x, top: y, width: w, height: h,
+    fill: 'rgba(100,100,100,0.08)', stroke: '#AAAAAA',
+    strokeWidth: 1.5, rx: 4,
+    selectable: true, evented: true,
+    _tool: 'section', _sectionType: 'SECTION',
+    _id: id, _name: '', _dept: '', _capacity: 0
+  });
+  cv.add(rect);
+  // Put section behind furniture but above bg
+  cv.sendToBack(rect);
+  cv.getObjects().filter(function(o) { return o._bg; })
+    .forEach(function(o) { cv.sendToBack(o); });
+
+  // Auto-tag objects whose center falls inside the new section
+  var tagged = [];
+  cv.getObjects().forEach(function(o) {
+    if (!o._tool || o._tool === 'wall' || o._tool === 'section' || o._bg || o._prev) return;
+    var cp = o.getCenterPoint();
+    if (cp.x >= x && cp.x <= x+w && cp.y >= y && cp.y <= y+h) {
+      o._sectionId = id;
+      tagged.push(o);
+    }
+  });
+  if (tagged.length) {
+    // Flash blue stroke to confirm inclusion
+    tagged.forEach(function(o) {
+      var orig = o.stroke;
+      o.set('stroke', '#4F46E5');
+      setTimeout(function() { o.set('stroke', orig); cv.renderAll(); }, 900);
+    });
+    toast(tagged.length + '개 오브젝트가 섹션에 포함됨');
+  }
+
+  cv.setActiveObject(rect);
+  cv.renderAll();
+  updatePanel();
+  countUp();
+  debouncePushHistory();
+  setTool('select');
+}
+
+// ── Desk Placement ────────────────────────────────────────
+function placeDesk() {
+  var cfg = Object.assign({}, PRESETS['desk1']);
+  if (pxPerM) {
+    cfg.w = Math.max(20, Math.round(cfg.wM * pxPerM));
+    cfg.h = Math.max(12, Math.round(cfg.hM * pxPerM));
+  }
+  furnitureCnt++;
+  var id = 'DESK-' + String(furnitureCnt).padStart(2, '0');
+  var vp = cv.viewportTransform;
+  var cx = (cW / 2 - vp[4]) / vp[0];
+  var cy = (cH / 2 - vp[5]) / vp[3];
+  var rect = new fabric.Rect({
+    left: Math.round(cx / GRID) * GRID,
+    top:  Math.round(cy / GRID) * GRID,
+    width: cfg.w, height: cfg.h,
+    originX: 'center', originY: 'center',
+    fill: cfg.fill, stroke: cfg.sk, strokeWidth: 1.2, rx: 3,
+    selectable: true, evented: true,
+    _tool: 'furniture', _preset: 'desk1',
+    _id: id, _name: '책상', _capacity: 1
+  });
+  cv.add(rect);
+  cv.setActiveObject(rect);
+  cv.renderAll();
+  updatePanel();
+  countUp();
+  debouncePushHistory();
+}
+
+// ── Furniture Placement (sofa / partition) ────────────────
+function placePreset(key) {
+  var cfg = Object.assign({}, PRESETS[key]);
+  if (!cfg) return;
+  if (pxPerM && cfg.wM) {
+    cfg.w = Math.max(20, Math.round(cfg.wM * pxPerM));
+    cfg.h = Math.max(8,  Math.round(cfg.hM * pxPerM));
+  }
+  furnitureCnt++;
+  var id = key.toUpperCase() + '-' + String(furnitureCnt).padStart(2, '0');
+  var vp = cv.viewportTransform;
+  var cx = (cW / 2 - vp[4]) / vp[0];
+  var cy = (cH / 2 - vp[5]) / vp[3];
+
+  var shape = buildFurnitureShape(key, cfg);
+  shape.set({
+    left: Math.round(cx / GRID) * GRID,
+    top:  Math.round(cy / GRID) * GRID,
+    originX: 'center', originY: 'center',
+    selectable: true, evented: true,
+    _tool: 'furniture', _preset: key,
+    _id: id, _name: cfg.label, _capacity: cfg.cap
+  });
+  cv.add(shape);
+  cv.setActiveObject(shape);
+  cv.renderAll();
+  updatePanel();
+  countUp();
+  debouncePushHistory();
+}
+
+function buildFurnitureShape(key, cfg) {
+  var w = cfg.w, h = cfg.h;
+  var items = [];
+
+  items.push(new fabric.Rect({
+    left: -w/2, top: -h/2, width: w, height: h,
+    fill: cfg.fill, stroke: cfg.sk, strokeWidth: 1.2, rx: 3
+  }));
+
+  if (key === 'sofa') {
+    items.push(new fabric.Rect({ left: -w/2, top: -h/2, width: 12, height: h,
+      fill: '#C4BCB4', stroke: 'none', rx: 2 }));
+    items.push(new fabric.Rect({ left: w/2-12, top: -h/2, width: 12, height: h,
+      fill: '#C4BCB4', stroke: 'none', rx: 2 }));
+    items.push(new fabric.Rect({ left: -w/2+12, top: -h/2, width: w-24, height: 13,
+      fill: '#C8C0B8', stroke: 'none' }));
+  }
+
+  return new fabric.Group(items);
+}
+
+// ── Step 3 Element List ───────────────────────────────────
+function buildElementList() {
+  var items = cv.getObjects().filter(function(o) {
+    return o._tool === 'furniture' || o._tool === 'section';
+  });
+  var el = document.getElementById('s3-list');
+  el.innerHTML = '';
+
+  if (!items.length) {
+    el.innerHTML = '<div class="elist-empty">배치된 요소가<br>없습니다</div>';
+    return;
+  }
+
+  items.forEach(function(obj) {
+    var div = document.createElement('div');
+    div.className = 'eitem';
+
+    var isSection = (obj._tool === 'section');
+    var badgeLabel = isSection
+      ? (obj._sectionType === 'MEETING' ? '회의실' : '구역')
+      : (PRESETS[obj._preset] && PRESETS[obj._preset].label || obj._preset || '가구');
+
+    var formHtml = '<div class="eitem-form">' +
+      '<div class="ef-row"><div class="ef-lbl">이름</div>' +
+        '<input class="ef-inp" data-f="name" value="' + escHtml(obj._name || '') + '"></div>';
+
+    if (isSection) {
+      formHtml +=
+        '<div class="ef-row"><div class="ef-lbl">구역 유형</div>' +
+          '<select class="ef-inp" data-f="stype">' +
+            '<option value="SECTION"' + (obj._sectionType !== 'MEETING' ? ' selected' : '') + '>일반 구역</option>' +
+            '<option value="MEETING"' + (obj._sectionType === 'MEETING' ? ' selected' : '') + '>회의실 (예약 가능)</option>' +
+          '</select></div>';
+    }
+
+    formHtml +=
+      '<div class="ef-row"><div class="ef-lbl">수용 인원</div>' +
+        '<input class="ef-inp" type="number" min="0" data-f="cap" value="' + (obj._capacity || 0) + '"></div>' +
+      '<div class="ef-row"><div class="ef-lbl">부서 / 그룹</div>' +
+        '<input class="ef-inp" data-f="dept" value="' + escHtml(obj._dept || '') + '"></div>' +
+      '</div>';
+
+    div.innerHTML =
+      '<div class="eitem-head">' +
+        '<span class="eitem-badge">' + badgeLabel + '</span>' +
+        '<span class="eitem-id">' + (obj._id || '') + '</span>' +
+      '</div>' + formHtml;
+
+    div.addEventListener('click', function() {
+      var wasOn = div.classList.contains('on');
+      document.querySelectorAll('.eitem').forEach(function(d) { d.classList.remove('on'); });
+      cv.getObjects().filter(function(o) { return o._hl; }).forEach(function(o) { cv.remove(o); });
+      if (!wasOn) { div.classList.add('on'); highlightObj(obj); }
+      else { cv.renderAll(); }
+    });
+
+    div.querySelectorAll('.ef-inp').forEach(function(inp) {
+      inp.addEventListener('input', function() {
+        if (inp.dataset.f === 'name')  obj._name = inp.value;
+        if (inp.dataset.f === 'cap')   obj._capacity = parseInt(inp.value) || 0;
+        if (inp.dataset.f === 'dept')  obj._dept = inp.value;
+        if (inp.dataset.f === 'stype') {
+          obj._sectionType = inp.value;
+          if (inp.value === 'MEETING') {
+            obj.set({ fill: 'rgba(79,70,229,0.12)', stroke: '#4F46E5' });
+          } else {
+            obj.set({ fill: 'rgba(100,100,100,0.08)', stroke: '#AAAAAA' });
+          }
+          cv.renderAll();
+        }
+      });
+      inp.addEventListener('click', function(ev) { ev.stopPropagation(); });
+    });
+
+    el.appendChild(div);
+  });
+}
+
+function highlightObj(obj) {
+  var pad = 8;
+  var sw = obj.getScaledWidth(), sh = obj.getScaledHeight();
+  var hl = new fabric.Rect({
+    left: obj.left, top: obj.top,
+    width: sw + pad * 2, height: sh + pad * 2,
+    originX: 'center', originY: 'center',
+    angle: obj.angle || 0,
+    fill: 'transparent', stroke: '#6C6860',
+    strokeWidth: 1.5, strokeDashArray: [5, 3],
+    selectable: false, evented: false, _hl: true
+  });
+  cv.add(hl);
+  cv.renderAll();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
+// ── Save / Next ───────────────────────────────────────────
+function saveDraft() {
+  var data = cv.toJSON(['_tool', '_bg', '_prev', '_id', '_name', '_capacity', '_dept', '_preset', '_sectionType']);
+  localStorage.setItem('so_draft', JSON.stringify(data));
+  toast('임시저장 완료');
+}
+
+function saveAll() {
+  var layoutName = (document.getElementById('so-layout-name').value || '').trim();
+  if (!layoutName) {
+    document.getElementById('so-layout-name').focus();
+    toast('사무실 이름을 입력하세요');
+    return;
+  }
+
+  // Out-of-bounds check
+  var allObjs = cv.getObjects().filter(function(o) { return !o._bg && !o._prev && !o._calib; });
+  if (allObjs.length > 1) {
+    var cxs = allObjs.map(function(o) { return o.left || 0; });
+    var cys = allObjs.map(function(o) { return o.top  || 0; });
+    var sorted = cxs.slice().sort(function(a,b){return a-b;});
+    var med = sorted[Math.floor(sorted.length/2)];
+    var stray = allObjs.filter(function(o) { return Math.abs((o.left||0) - med) > 5000 || Math.abs((o.top||0) - med) > 5000; });
+    if (stray.length && !confirm('화면 밖으로 이탈한 오브젝트가 ' + stray.length + '개 있습니다. 그대로 저장할까요?')) return;
+  }
+
+  var elements = cv.getObjects()
+    .filter(function(o) { return o._tool === 'furniture' || o._tool === 'section'; })
+    .map(function(o) {
+      var type;
+      if (o._tool === 'section') type = o._sectionType || 'SECTION';
+      else type = 'DESK';
+      return { id: o._id, name: o._name || '', capacity: o._capacity || 0,
+               dept: o._dept || '', type: type };
+    });
+
+  // Fabric.js JSON에 커스텀 속성 포함
+  var canvasJson = JSON.stringify(
+    cv.toJSON(['_tool', '_bg', '_prev', '_id', '_name', '_capacity', '_dept', '_preset', '_sectionType'])
+  );
+
+  var payload = { layoutName: layoutName, canvasJson: canvasJson, elements: elements,
+                  layoutId: window._editingLayoutId || null };
+
+  var csrfToken  = (document.querySelector('meta[name="_csrf"]')  || {}).content  || '';
+  var csrfHeader = (document.querySelector('meta[name="_csrf_header"]') || {}).content || 'X-CSRF-TOKEN';
+  var reqHeaders = { 'Content-Type': 'application/json' };
+  if (csrfToken) reqHeaders[csrfHeader] = csrfToken;
+
+  fetch('/sample/so/save.jsp', {
+    method: 'POST',
+    headers: reqHeaders,
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.ok) throw new Error(data.error || '저장 실패');
+    window._editingLayoutId = data.layoutId;
+    toast((data.updated ? '수정 완료' : '저장 완료') + ' (' + data.count + '개 요소)');
+    setTimeout(function() {
+      if (confirm('저장됐어요! 목록 페이지로 이동할까요?')) {
+        location.href = '/sample/so_list.jsp';
+      }
+    }, 800);
+  })
+  .catch(function(e) {
+    toast('오류: ' + e.message);
+  });
+}
+
+// ── 기존 레이아웃 불러오기 ────────────────────────────────────
+window._editingLayoutId = null;
+
+(function loadLayoutList() {
+  fetch('/sample/so/list.jsp')
+    .then(function(r) { return r.json(); })
+    .then(function(list) {
+      var sel = document.getElementById('load-sel');
+      list.forEach(function(item) {
+        if (item.error) return;
+        var opt = document.createElement('option');
+        opt.value = item.layoutId;
+        opt.textContent = item.layoutName;
+        sel.appendChild(opt);
+      });
+    });
+})();
+
+function loadExisting(layoutId) {
+  if (!layoutId) return;
+  if (!confirm('현재 캔버스를 지우고 선택한 레이아웃을 불러올까요?')) {
+    document.getElementById('load-sel').value = '';
+    return;
+  }
+  fetch('/sample/so/get.jsp?id=' + encodeURIComponent(layoutId))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) throw new Error(data.error || '불러오기 실패');
+      _histLock = true;
+      cv.clear();
+      cv.loadFromJSON(data.layout.canvasJson, function() {
+        cv.getObjects().forEach(function(o) {
+          if (o._tool === 'wall') makeWallEditable(o);
+          o.selectable = false; o.evented = false;
+        });
+        cv.renderAll();
+        rebuildPts();
+        _histLock = false;
+        _history = []; _histIdx = -1;
+        pushHistory();
+        countUp();
+      }, function(o, fabricObj) {
+        HIST_KEYS.forEach(function(k) { if (o[k] !== undefined) fabricObj[k] = o[k]; });
+      });
+      // 이름 복원
+      document.getElementById('so-layout-name').value = data.layout.layoutName;
+      // 수정 모드 표시
+      window._editingLayoutId = layoutId;
+      toast('"' + data.layout.layoutName + '" 불러옴 — 수정 후 저장하세요');
+      // 카운터 갱신
+      var furnitureCount = (data.elements || []).length;
+      countUp(furnitureCount);
+    })
+    .catch(function(e) {
+      toast('오류: ' + e.message);
+      document.getElementById('load-sel').value = '';
+    });
+}
+
+// ── Toast ─────────────────────────────────────────────────
+var toastTimer;
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { el.style.opacity = '0'; }, 2000);
+}
+
+// ── Window resize ─────────────────────────────────────────
+window.addEventListener('resize', function() {
+  var na = document.getElementById('carea');
+  cv.setWidth(na.clientWidth   - 2);
+  cv.setHeight(na.clientHeight - 2);
+  cv.renderAll();
+});
+
+// ── Snap Control ─────────────────────────────────────────
+function setSnap(px) {
+  SNAP = px;
+  [5, 10, 20].forEach(function(v) {
+    var btn = document.getElementById('snap-btn-' + v);
+    if (!btn) return;
+    btn.style.background = (v === px) ? 'var(--txt)' : 'transparent';
+    btn.style.color      = (v === px) ? '#FAFAF8'    : 'var(--txt2)';
+  });
+}
+
+// ── Undo / Redo ───────────────────────────────────────────
+var _history    = [];
+var _histIdx    = -1;
+var _histLock   = false;
+var _histTimer;
+var HIST_KEYS   = ['_tool','_bg','_prev','_id','_name','_capacity','_dept','_preset','_sectionType','_sectionId','_wallReady','_calib','_doorW','_winW','_grouped'];
+
+function pushHistory() {
+  if (_histLock) return;
+  _history = _history.slice(0, _histIdx + 1);
+  var snap = JSON.stringify(cv.toJSON(HIST_KEYS));
+  if (_history.length && _history[_histIdx] === snap) return;
+  _history.push(snap);
+  if (_history.length > 50) { _history.shift(); }
+  _histIdx = _history.length - 1;
+  updateUndoRedoBtns();
+}
+
+function debouncePushHistory() {
+  if (_histLock) return;
+  clearTimeout(_histTimer);
+  _histTimer = setTimeout(pushHistory, 80);
+}
+
+function restoreHistory(snap) {
+  _histLock = true;
+  cv.loadFromJSON(JSON.parse(snap), function() {
+    cv.getObjects().forEach(function(o) {
+      HIST_KEYS.forEach(function(k) { /* already set via reviver */ });
+      if (o._tool === 'wall') makeWallEditable(o);
+      if (currentStep === 1) {
+        var isSt = o._tool && o._tool !== 'furniture' && o._tool !== 'section';
+        o.selectable = !!isSt && !o._bg && !o._prev;
+        o.evented    = !!isSt && !o._bg && !o._prev;
+      } else if (currentStep === 2) {
+        var isIn = o._tool === 'furniture' || o._tool === 'section';
+        o.selectable = isIn; o.evented = isIn;
+      } else {
+        o.selectable = false; o.evented = false;
+      }
+    });
+    rebuildPts();
+    countUp();
+    cv.renderAll();
+    _histLock = false;
+    updateUndoRedoBtns();
+  }, function(o, fo) {
+    HIST_KEYS.forEach(function(k) { if (o[k] !== undefined) fo[k] = o[k]; });
+  });
+}
+
+function undo() {
+  if (_histIdx <= 0) return;
+  _histIdx--;
+  restoreHistory(_history[_histIdx]);
+}
+
+function redo() {
+  if (_histIdx >= _history.length - 1) return;
+  _histIdx++;
+  restoreHistory(_history[_histIdx]);
+}
+
+function updateUndoRedoBtns() {
+  document.getElementById('btn-undo').disabled = (_histIdx <= 0);
+  document.getElementById('btn-redo').disabled = (_histIdx >= _history.length - 1);
+}
+
+// ── Zoom Controls ─────────────────────────────────────────
+function zoomIn()  { applyZoom(cv.getZoom() * 1.25); }
+function zoomOut() { applyZoom(cv.getZoom() / 1.25); }
+
+function applyZoom(z) {
+  z = Math.min(Math.max(z, 0.1), 8);
+  var center = new fabric.Point(cW / 2, cH / 2);
+  cv.zoomToPoint(center, z);
+  updateZoomDisplay();
+  cv.renderAll();
+}
+
+function fitAll() {
+  var objs = cv.getObjects().filter(function(o) { return !o._bg && !o._prev && !o._calib; });
+  if (!objs.length) { cv.setViewportTransform([1,0,0,1,0,0]); updateZoomDisplay(); cv.renderAll(); return; }
+  var rects = objs.map(function(o) { return o.getBoundingRect(true, true); });
+  var cxs   = rects.map(function(b) { return b.left + b.width/2; }).sort(function(a,b){return a-b;});
+  var cys   = rects.map(function(b) { return b.top  + b.height/2; }).sort(function(a,b){return a-b;});
+  var med   = { x: cxs[Math.floor(cxs.length/2)], y: cys[Math.floor(cys.length/2)] };
+  var filtered = rects.filter(function(b) {
+    return Math.abs(b.left + b.width/2  - med.x) < 5000 &&
+           Math.abs(b.top  + b.height/2 - med.y) < 5000;
+  });
+  if (!filtered.length) filtered = rects;
+  var minX=1e9, minY=1e9, maxX=-1e9, maxY=-1e9;
+  filtered.forEach(function(b) {
+    minX=Math.min(minX,b.left); minY=Math.min(minY,b.top);
+    maxX=Math.max(maxX,b.left+b.width); maxY=Math.max(maxY,b.top+b.height);
+  });
+  var p  = 40;
+  var sc = Math.min((cW-p*2)/(maxX-minX), (cH-p*2)/(maxY-minY));
+  sc = Math.min(Math.max(sc, 0.05), 8);
+  cv.setViewportTransform([sc,0,0,sc, (cW-(maxX-minX)*sc)/2-minX*sc, (cH-(maxY-minY)*sc)/2-minY*sc]);
+  updateZoomDisplay();
+  cv.renderAll();
+}
+
+function updateZoomDisplay() {
+  document.getElementById('zoom-pct').textContent = Math.round(cv.getZoom() * 100) + '%';
+}
+
+// Mouse wheel zoom
+cv.on('mouse:wheel', function(opt) {
+  opt.e.preventDefault(); opt.e.stopPropagation();
+  var delta = opt.e.deltaY;
+  var z = cv.getZoom() * (delta > 0 ? 0.9 : 1.1);
+  z = Math.min(Math.max(z, 0.1), 8);
+  cv.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), z);
+  updateZoomDisplay();
+});
+
+// ── Copy / Paste ──────────────────────────────────────────
+var _clipboard = null;
+var _pasteDelta = 0;
+
+function copySelected() {
+  var sel = cv.getActiveObjects();
+  if (!sel.length) return;
+  // Convert relative ActiveSelection coords to absolute canvas coords at copy time
+  var activeObj = cv.getActiveObject();
+  var baseMatrix = (activeObj && activeObj.type === 'activeSelection')
+    ? activeObj.calcTransformMatrix() : null;
+  _clipboard = sel.map(function(obj) {
+    var absLeft, absTop;
+    if (baseMatrix) {
+      var pt = fabric.util.transformPoint({ x: obj.left, y: obj.top }, baseMatrix);
+      absLeft = pt.x; absTop = pt.y;
+    } else {
+      absLeft = obj.left || 0; absTop = obj.top || 0;
+    }
+    return { orig: obj, absLeft: absLeft, absTop: absTop };
+  });
+  _pasteDelta = 0;
+  toast('복사됨 (' + sel.length + '개) · Ctrl+V 로 붙여넣기');
+}
+
+function pasteClipboard() {
+  if (!_clipboard || !_clipboard.length) return;
+  _pasteDelta += 20;
+  var delta = _pasteDelta;
+  cv.discardActiveObject();
+  var newObjs = [];
+  var pending = _clipboard.length;
+
+  _clipboard.forEach(function(item) {
+    var orig    = item.orig;
+    var absLeft = item.absLeft;
+    var absTop  = item.absTop;
+    orig.clone(function(cloned) {
+      furnitureCnt++;
+      cloned.set({
+        left: absLeft + delta,
+        top:  absTop  + delta,
+        _id:  (orig._tool === 'furniture' ? 'DESK' : 'OBJ') + '-' + String(furnitureCnt).padStart(2,'0'),
+        _name: orig._name || '',
+        _capacity: orig._capacity || 0,
+        _dept: orig._dept || '',
+        _sectionType: orig._sectionType || null,
+        _preset: orig._preset || null,
+        _tool: orig._tool
+      });
+      if (orig._tool === 'wall') {
+        // x1/y1/x2/y2 are absolute canvas coords — offset them to match new center
+        var origCx = (orig.x1 + orig.x2) / 2;
+        var origCy = (orig.y1 + orig.y2) / 2;
+        var dx = (absLeft + delta) - origCx;
+        var dy = (absTop  + delta) - origCy;
+        cloned.set({
+          x1: orig.x1 + dx, y1: orig.y1 + dy,
+          x2: orig.x2 + dx, y2: orig.y2 + dy
+        });
+        makeWallEditable(cloned);
+      }
+      cv.add(cloned);
+      newObjs.push(cloned);
+      pending--;
+      if (!pending) {
+        if (newObjs.length === 1) {
+          cv.setActiveObject(newObjs[0]);
+        } else {
+          var sel2 = new fabric.ActiveSelection(newObjs, { canvas: cv });
+          cv.setActiveObject(sel2);
+        }
+        cv.renderAll();
+        countUp();
+        debouncePushHistory();
+      }
+    }, HIST_KEYS);
+  });
+}
+
+// ── Step click navigation ─────────────────────────────────
+function clickStep(n) {
+  if (n === currentStep) return;
+  if (n > currentStep + 1) { toast('순서대로 진행해 주세요'); return; }
+  goToStep(n);
+}
+
+// ── Object list panel ─────────────────────────────────────
+var _objlistOpen = true;
+
+function toggleObjList() {
+  _objlistOpen = !_objlistOpen;
+  document.getElementById('objlist-body').style.display = _objlistOpen ? '' : 'none';
+}
+
+function refreshObjList() {
+  var wrap = document.getElementById('objlist-wrap');
+  var body = document.getElementById('objlist-body');
+  var cnt  = document.getElementById('objlist-count');
+  if (currentStep === 3) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  var objs;
+  if (currentStep === 1) {
+    objs = cv.getObjects().filter(function(o) {
+      return !o._bg && !o._prev && !o._calib &&
+             o._tool && o._tool !== 'furniture' && o._tool !== 'section';
+    });
+  } else {
+    objs = cv.getObjects().filter(function(o) {
+      return o._tool === 'furniture' || o._tool === 'section' || o._tool === 'group';
+    });
+  }
+
+  cnt.textContent = objs.length + '개';
+  body.innerHTML  = '';
+
+  if (!objs.length) {
+    body.innerHTML = '<div style="padding:12px 15px;font-size:10px;color:var(--txt2);text-align:center">없음</div>';
+    return;
+  }
+
+  var labelMap = { wall:'벽', door:'문', window:'창문', column:'기둥', furniture:'책상', section:'구역', group:'그룹' };
+  var dotMap   = { wall:'wall', door:'door', window:'window', column:'column', furniture:'desk', section:'section', group:'group' };
+
+  objs.forEach(function(obj, i) {
+    var isSection = obj._tool === 'section';
+    var isMeeting = isSection && obj._sectionType === 'MEETING';
+    var label = obj._name || (isSection ? (isMeeting ? '회의실' : '구역') : (labelMap[obj._tool] || '요소')) + ' ' + (i+1);
+    var dotCls = isMeeting ? 'meeting' : (dotMap[obj._tool] || 'desk');
+
+    var row = document.createElement('div');
+    row.className = 'ol-item';
+    row.innerHTML =
+      '<div class="ol-dot ' + dotCls + '"></div>' +
+      '<span class="ol-lbl">' + escHtml(label) + '</span>' +
+      (obj._tool === 'group' ? '<button class="ol-ungrp" title="그룹 해제">풀기</button>' : '') +
+      '<button class="ol-del" title="삭제">×</button>';
+
+    row.addEventListener('click', function(e) {
+      if (e.target.classList.contains('ol-del') || e.target.classList.contains('ol-ungrp')) return;
+      document.querySelectorAll('.ol-item').forEach(function(r) { r.classList.remove('on'); });
+      row.classList.add('on');
+      if (obj.selectable) {
+        cv.setActiveObject(obj);
+        cv.renderAll();
+        updatePanel();
+      } else {
+        cv.getObjects().filter(function(o) { return o._hl; }).forEach(function(o) { cv.remove(o); });
+        var pad = 8, sw = obj.getScaledWidth ? obj.getScaledWidth() : (obj.width||40);
+        var sh  = obj.getScaledHeight ? obj.getScaledHeight() : (obj.height||40);
+        var hl  = new fabric.Rect({
+          left: obj.left, top: obj.top,
+          width: sw + pad*2, height: sh + pad*2,
+          originX:'center', originY:'center', angle: obj.angle||0,
+          fill:'transparent', stroke:'#4F46E5', strokeWidth:2,
+          strokeDashArray:[5,3], selectable:false, evented:false, _hl:true
+        });
+        cv.add(hl);
+        cv.renderAll();
+        setTimeout(function() { cv.getObjects().filter(function(o){return o._hl;}).forEach(function(o){cv.remove(o);}); cv.renderAll(); }, 1500);
+      }
+    });
+
+    row.querySelector('.ol-del').addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!obj._bg) cv.remove(obj);
+      cv.discardActiveObject();
+      cv.renderAll();
+      showPanelEmpty();
+      countUp();
+      debouncePushHistory();
+    });
+
+    var ungrpBtn = row.querySelector('.ol-ungrp');
+    if (ungrpBtn) {
+      ungrpBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var items = obj._objects.slice();
+        var m = obj.calcTransformMatrix();
+        cv.discardActiveObject();
+        cv.remove(obj);
+        items.forEach(function(item) {
+          var pt = fabric.util.transformPoint(
+            new fabric.Point(item.left || 0, item.top || 0), m);
+          item.set({ left: pt.x, top: pt.y, angle: (item.angle||0)+(obj.angle||0) });
+          item.setCoords();
+          cv.add(item);
+        });
+        var sel = new fabric.ActiveSelection(items, { canvas: cv });
+        cv.setActiveObject(sel); cv.renderAll(); debouncePushHistory();
+        refreshObjList();
+      });
+    }
+
+    body.appendChild(row);
+  });
+}
+
+// ── OpenCV Auto-detect ────────────────────────────────────
+// IMPORTANT: OpenCV.js also exports itself as window.cv, which would
+// overwrite the Fabric Canvas stored in our 'cv' variable.
+// Fix: capture the Fabric Canvas reference before loading, restore after.
+var _ocv        = null;   // OpenCV instance, stored after namespace rescue
+var _ocvCbs     = [];     // queued callbacks while loading
+var ocvPrevLines = [];    // Fabric Line preview objects (shown before apply)
+
+function ocvLoad(cb) {
+  if (_ocv) { cb(_ocv); return; }
+  _ocvCbs.push(cb);
+  if (_ocvCbs.length > 1) return;  // already in progress
+
+  var _fabricCv = cv;  // save Fabric Canvas BEFORE script tag is appended
+  window['Module'] = {
+    onRuntimeInitialized: function() {
+      _ocv = cv;          // cv is now OpenCV — capture it
+      cv = _fabricCv;     // restore Fabric Canvas to cv
+      var pending = _ocvCbs.splice(0);
+      pending.forEach(function(fn) { fn(_ocv); });
+    }
+  };
+
+  var s = document.createElement('script');
+  s.src = 'https://docs.opencv.org/4.10.0/opencv.js';
+  s.onerror = function() {
+    cv = _fabricCv;  // restore even on error
+    _ocvCbs = [];
+    var btn = document.getElementById('btn-ocv');
+    if (btn) { btn.disabled = false; btn.textContent = '벽 자동 감지'; }
+    toast('OpenCV.js 로드 실패. 인터넷 연결을 확인하세요');
+  };
+  document.head.appendChild(s);
+}
+
+function imgToFabricPt(px, py, procScale) {
+  // Convert processed-image pixel coords back to Fabric canvas coords.
+  // procScale: canvas→image downscale applied before processing (default 1).
+  var imgPx = px / procScale;
+  var imgPy = py / procScale;
+  return {
+    x: bgImg.left + (imgPx - bgImg.width  / 2) * bgImg.scaleX,
+    y: bgImg.top  + (imgPy - bgImg.height / 2) * bgImg.scaleY
+  };
+}
+
+function mergeNearbyLines(lines, imgW, imgH) {
+  // Merge near-parallel segments that are within MERGE pixels of each other.
+  // This collapses the two edges of a thick wall into one centre line.
+  var MERGE = Math.max(imgW, imgH) * 0.012;
+
+  function groupMerge(ls, getPerp, getA, getB) {
+    if (!ls.length) return [];
+    ls.sort(function(a, b) { return getPerp(a) - getPerp(b); });
+    var groups = [[ls[0]]];
+    for (var i = 1; i < ls.length; i++) {
+      var g = groups[groups.length - 1];
+      var avg = g.reduce(function(s, l) { return s + getPerp(l); }, 0) / g.length;
+      if (Math.abs(getPerp(ls[i]) - avg) < MERGE) {
+        g.push(ls[i]);
+      } else {
+        groups.push([ls[i]]);
+      }
+    }
+    return groups.map(function(g) {
+      return {
+        perp: g.reduce(function(s, l) { return s + getPerp(l); }, 0) / g.length,
+        a:    Math.min.apply(null, g.map(getA)),
+        b:    Math.max.apply(null, g.map(getB))
+      };
+    });
+  }
+
+  var hLines = lines.filter(function(l) { return l.isH; });
+  var vLines = lines.filter(function(l) { return !l.isH; });
+
+  var mergedH = groupMerge(hLines,
+    function(l) { return l.y1; },
+    function(l) { return l.x1; },
+    function(l) { return l.x2; }
+  ).map(function(m) { return { x1:m.a, y1:m.perp, x2:m.b, y2:m.perp }; });
+
+  var mergedV = groupMerge(vLines,
+    function(l) { return l.x1; },
+    function(l) { return l.y1; },
+    function(l) { return l.y2; }
+  ).map(function(m) { return { x1:m.perp, y1:m.a, x2:m.perp, y2:m.b }; });
+
+  return mergedH.concat(mergedV);
+}
+
+function runOcvDetect(ocv) {
+  var src, gray, blurred, edges, lines;
+  try {
+    var origW = bgImg.width, origH = bgImg.height;
+
+    // Downscale large images before processing (keeps WASM heap manageable)
+    var MAX_DIM   = 1400;
+    var procScale = Math.min(MAX_DIM / origW, MAX_DIM / origH, 1);
+    var procW     = Math.round(origW * procScale);
+    var procH     = Math.round(origH * procScale);
+
+    var tmp = document.createElement('canvas');
+    tmp.width  = procW;
+    tmp.height = procH;
+    tmp.getContext('2d').drawImage(bgImg._element, 0, 0, procW, procH);
+
+    src     = ocv.imread(tmp);
+    gray    = new ocv.Mat();
+    blurred = new ocv.Mat();
+    edges   = new ocv.Mat();
+    lines   = new ocv.Mat();
+
+    // RGBA → grayscale → blur → Canny edges
+    ocv.cvtColor(src, gray, ocv.COLOR_RGBA2GRAY);
+    ocv.GaussianBlur(gray, blurred, new ocv.Size(3, 3), 0, 0, ocv.BORDER_DEFAULT);
+    ocv.Canny(blurred, edges, 50, 150, 3, false);
+
+    // Probabilistic Hough line detection
+    var minLen = Math.max(procW, procH) * 0.025;
+    var maxGap = minLen * 0.4;
+    ocv.HoughLinesP(edges, lines, 1, Math.PI / 180, 40, minLen, maxGap);
+
+    // Extract segments, keep only horizontal/vertical (±15°)
+    var raw = [];
+    for (var i = 0; i < lines.rows; i++) {
+      var lx1 = lines.data32S[i * 4],     ly1 = lines.data32S[i * 4 + 1];
+      var lx2 = lines.data32S[i * 4 + 2], ly2 = lines.data32S[i * 4 + 3];
+      var ang = Math.abs(Math.atan2(ly2 - ly1, lx2 - lx1) * 180 / Math.PI);
+      var isH = ang < 15 || ang > 165;
+      var isV = Math.abs(ang - 90) < 15;
+      if (!isH && !isV) continue;
+      if (isH) {
+        var my = (ly1 + ly2) / 2;
+        raw.push({ x1: Math.min(lx1,lx2), y1: my,               x2: Math.max(lx1,lx2), y2: my,               isH: true  });
+      } else {
+        var mx = (lx1 + lx2) / 2;
+        raw.push({ x1: mx,               y1: Math.min(ly1,ly2), x2: mx,               y2: Math.max(ly1,ly2), isH: false });
+      }
+    }
+
+    // Merge near-parallel lines (thick-wall edges → single centre line)
+    var merged = mergeNearbyLines(raw, procW, procH);
+
+    // Map back to Fabric canvas coordinates
+    var result = merged.map(function(d) {
+      var p1 = imgToFabricPt(d.x1, d.y1, procScale);
+      var p2 = imgToFabricPt(d.x2, d.y2, procScale);
+      return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+    });
+
+    // Show as preview lines (indigo, semi-transparent)
+    clearOcvPreview();
+    result.forEach(function(l) {
+      var pLine = new fabric.Line([l.x1, l.y1, l.x2, l.y2], {
+        stroke: 'rgba(79,70,229,0.7)', strokeWidth: DEF_SW,
+        strokeLineCap: 'round', selectable: false, evented: false,
+        _ocvPrev: true
+      });
+      cv.add(pLine);
+      ocvPrevLines.push(pLine);
+    });
+    cv.renderAll();
+
+    var btn = document.getElementById('btn-ocv');
+    btn.disabled = false;
+    btn.textContent = '다시 감지';
+    document.getElementById('ocv-count').textContent = result.length;
+    document.getElementById('ocv-note').textContent  = raw.length !== merged.length ? '(병합 후)' : '';
+    document.getElementById('ocv-result').style.display = 'block';
+
+  } finally {
+    // Always release OpenCV Mat objects — leaking them exhausts WASM heap
+    if (src)     src.delete();
+    if (gray)    gray.delete();
+    if (blurred) blurred.delete();
+    if (edges)   edges.delete();
+    if (lines)   lines.delete();
+  }
+}
+
+function startOcvDetect() {
+  if (!bgImg) { toast('먼저 배경 도면을 업로드하세요'); return; }
+  var btn = document.getElementById('btn-ocv');
+  btn.disabled    = true;
+  btn.textContent = '로딩 중...';
+  clearOcvPreview();
+  document.getElementById('ocv-result').style.display = 'none';
+
+  ocvLoad(function(ocv) {
+    btn.textContent = '분석 중...';
+    // Defer one frame so UI updates before the heavy WASM work
+    setTimeout(function() {
+      try {
+        runOcvDetect(ocv);
+      } catch (err) {
+        btn.disabled    = false;
+        btn.textContent = '벽 자동 감지';
+        toast('감지 실패: ' + (err.message || err));
+      }
+    }, 50);
+  });
+}
+
+function applyOcvLines() {
+  var count = ocvPrevLines.length;
+  ocvPrevLines.forEach(function(l) {
+    var wall = new fabric.Line([l.x1, l.y1, l.x2, l.y2], {
+      stroke: '#3A3530', strokeWidth: DEF_SW, strokeLineCap: 'round',
+      strokeUniform: true, selectable: false, evented: false, _tool: 'wall'
+    });
+    cv.remove(l);
+    cv.add(wall);
+    makeWallEditable(wall);
+    pts.push({ x: l.x1, y: l.y1 }, { x: l.x2, y: l.y2 });
+  });
+  ocvPrevLines = [];
+  countUp();
+  debouncePushHistory();
+  refreshObjList();
+  document.getElementById('ocv-result').style.display = 'none';
+  var btn = document.getElementById('btn-ocv');
+  btn.textContent = '벽 자동 감지';
+  cv.renderAll();
+  toast(count + '개 벽이 추가되었습니다');
+}
+
+function cancelOcvDetect() {
+  clearOcvPreview();
+  document.getElementById('ocv-result').style.display = 'none';
+  var btn = document.getElementById('btn-ocv');
+  if (btn) { btn.disabled = false; btn.textContent = '벽 자동 감지'; }
+}
+
+function clearOcvPreview() {
+  ocvPrevLines.forEach(function(l) { cv.remove(l); });
+  ocvPrevLines = [];
+}
+
+// ── Init ──────────────────────────────────────────────────
+setTool('select');
+// Initial history snapshot
+pushHistory();
+// Initial zoom display
+updateZoomDisplay();
+</script>
+</body>
+</html>
