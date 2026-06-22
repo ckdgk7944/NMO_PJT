@@ -1679,7 +1679,7 @@ function setTool(t) {
       }
       var sel;
       if (currentStep === 2) {
-        sel = (o._tool === 'furniture' || o._tool === 'section');
+        sel = (o._tool === 'furniture' || o._tool === 'section' || o._tool === 'group');
       } else {
         sel = (o._tool && o._tool !== 'furniture' && o._tool !== 'section');
       }
@@ -1846,7 +1846,7 @@ cv.on('mouse:down', function(e) {
 
   // Endpoint drag: check ALL walls (circle is drawn via after:render, extends beyond line hit area)
   // Skip if user clicked on a non-wall selectable object (e.g. door/window resize handle)
-  if (activeTool === 'select' && (!e.target || e.target._tool === 'wall' || e.target._prev)) {
+  if (currentStep === 1 && activeTool === 'select' && (!e.target || e.target._tool === 'wall' || e.target._prev)) {
     var p   = cv.getPointer(e.e);
     var HIT = 14 / cv.getZoom();
     var walls = cv.getObjects().filter(function(o) { return o._tool === 'wall' && !o._prev; });
@@ -1881,7 +1881,7 @@ cv.on('mouse:down', function(e) {
   }
 
   // Wall body drag: click on wall line (not near endpoint) → move whole wall
-  if (activeTool === 'select') {
+  if (currentStep === 1 && activeTool === 'select') {
     var pb   = cv.getPointer(e.e);
     var BHIT = 9 / cv.getZoom();
     var walls2 = cv.getObjects().filter(function(o) { return o._tool === 'wall' && !o._prev; });
@@ -4366,7 +4366,7 @@ document.addEventListener('keydown', function(e) {
         var selectables = cv.getObjects().filter(function(o) {
           if (o._bg || o._prev || o._calib) return false;
           return currentStep === 2
-            ? (o._tool === 'furniture' || o._tool === 'section')
+            ? (o._tool === 'furniture' || o._tool === 'section' || o._tool === 'group')
             : (o._tool && o._tool !== 'furniture' && o._tool !== 'section');
         });
         if (selectables.length === 1) { cv.setActiveObject(selectables[0]); }
@@ -4693,7 +4693,7 @@ function goToStep(n) {
     // Structure locked, furniture + section selectable
     cv.forEachObject(function(o) {
       if (o._bg || o._prev) return;
-      var isInteractive = (o._tool === 'furniture' || o._tool === 'section');
+      var isInteractive = (o._tool === 'furniture' || o._tool === 'section' || o._tool === 'group');
       o.selectable = isInteractive;
       o.evented    = isInteractive;
     });
